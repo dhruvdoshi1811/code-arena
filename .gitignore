@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+.DS_Store
+codearena-spec.md
+
+# Go (from Phase C)
+services/orchestrator/bin/
