@@ -1,0 +1,42 @@
+import { config } from './config.js';
+import { closePool, pingDatabase } from './db/pool.js';
+import { createGateway } from './server.js';
+import { SOCKET_IO_PATH } from './realtime/socket.js';
+import { YJS_PATH_PREFIX } from './realtime/yjs.js';
+
+async function main(): Promise<void> {
+  // Fail loudly at boot rather than on the first request.
+  await pingDatabase();
+
+  const gateway = createGateway();
+  const port = await gateway.listen(config.port);
+
+  console.log(`[gateway] listening on http://localhost:${port} (${config.nodeEnv})`);
+  console.log(`[gateway]   REST      http://localhost:${port}/api`);
+  console.log(`[gateway]   socket.io ws://localhost:${port}${SOCKET_IO_PATH}`);
+  console.log(`[gateway]   yjs       ws://localhost:${port}${YJS_PATH_PREFIX}<sessionId>?token=...`);
+
+  let shuttingDown = false;
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+    process.on(signal, () => {
+      if (shuttingDown) return;
+      shuttingDown = true;
+      console.log(`[gateway] ${signal} received, shutting down`);
+      gateway
+        .close()
+        .then(closePool)
+        .then(
+          () => process.exit(0),
+          (err: unknown) => {
+            console.error('[gateway] error during shutdown', err);
+            process.exit(1);
+          },
+        );
+    });
+  }
+}
+
+main().catch((err: unknown) => {
+  console.error('[gateway] failed to start', err);
+  process.exit(1);
+});
