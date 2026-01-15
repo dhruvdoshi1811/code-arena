@@ -15,16 +15,22 @@
     "migrate:test": "dotenv -e .env.test -- node-pg-migrate -m migrations",
     "test": "dotenv -e .env.test -- vitest run",
     "test:watch": "dotenv -e .env.test -- vitest",
-    "proof": "dotenv -e .env -- tsx scripts/two-clients.ts"
+    "proof": "dotenv -e .env -- tsx scripts/two-clients.ts",
+    "proof:collab": "dotenv -e .env -- tsx scripts/concurrent-edit.ts"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",
+    "@socket.io/redis-adapter": "^8.3.0",
     "cors": "^2.8.6",
     "express": "^5.1.0",
+    "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.2",
+    "lib0": "^0.2.117",
     "pg": "^8.13.1",
     "socket.io": "^4.8.1",
     "ws": "^8.18.0",
+    "y-protocols": "^1.0.7",
+    "yjs": "^13.6.32",
     "zod": "^3.24.1"
   },
   "devDependencies": {
@@ -41,6 +47,7 @@
     "supertest": "^7.0.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "y-websocket": "^3.1.0"
   }
 }

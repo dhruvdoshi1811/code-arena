@@ -7,6 +7,7 @@ const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
   DATABASE_URL: z.string().url(),
+  REDIS_URL: z.string().url(),
   JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters'),
   JWT_EXPIRES_IN: z.string().default('7d'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
@@ -29,6 +30,7 @@ export const config = {
   isTest: env.NODE_ENV === 'test',
   port: env.PORT,
   databaseUrl: env.DATABASE_URL,
+  redisUrl: env.REDIS_URL,
   jwtSecret: env.JWT_SECRET,
   jwtExpiresIn: env.JWT_EXPIRES_IN,
   corsOrigins: env.CORS_ORIGIN.split(',')
