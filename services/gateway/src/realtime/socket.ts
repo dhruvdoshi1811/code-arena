@@ -1,11 +1,13 @@
 import type { Server as HttpServer } from 'node:http';
 import { Server, type Socket } from 'socket.io';
+import { createAdapter } from '@socket.io/redis-adapter';
 import { z, ZodError } from 'zod';
 import { config } from '../config.js';
 import { AppError } from '../errors.js';
 import type { PublicUser } from '../domain.js';
 import { authenticateToken, resolveJoinableSession } from './auth.js';
-import { presence, type Participant } from './presence.js';
+import { broadcastPresence, roomKey, type Participant } from './presence.js';
+import { adapterPub, adapterSub } from './redis.js';
 
 export const SOCKET_IO_PATH = '/socket.io/';
 
@@ -33,8 +35,6 @@ export type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, objec
 export type AppIoServer = Server<ClientToServerEvents, ServerToClientEvents, object, SocketData>;
 
 const JoinSchema = z.object({ sessionId: z.string().uuid('Not a valid session id') });
-
-const room = (sessionId: string) => `session:${sessionId}`;
 
 /** Mirrors the HTTP error envelope so a client sees the same `code` for the same
  *  failure whether it arrived over REST or over a socket. */
@@ -67,6 +67,10 @@ export function attachSocketIo(httpServer: HttpServer): AppIoServer {
     destroyUpgrade: false,
   });
 
+  // Rooms, broadcasts, and `fetchSockets()` now span every gateway instance. This one
+  // line is what turns presence from a per-process fiction into a cluster-wide fact.
+  io.adapter(createAdapter(adapterPub, adapterSub));
+
   // Authenticate during the handshake: an unauthenticated socket never reaches
   // `connection`, so no handler downstream has to re-check identity.
   io.use((socket, next) => {
@@ -92,11 +96,10 @@ export function attachSocketIo(httpServer: HttpServer): AppIoServer {
 
         const session = await resolveJoinableSession(sessionId, user);
 
-        await socket.join(room(session.id));
+        await socket.join(roomKey(session.id));
         socket.data.sessionId = session.id;
 
-        const participants = presence.join(session.id, user);
-        io.to(room(session.id)).emit('presence:update', { sessionId: session.id, participants });
+        const participants = await broadcastPresence(io, session.id);
         ack?.({ ok: true, participants });
       } catch (err) {
         ack?.(toAckError(err));
@@ -125,8 +128,9 @@ async function leaveCurrentRoom(io: AppIoServer, socket: AppSocket): Promise<voi
   if (!sessionId) return;
 
   socket.data.sessionId = undefined;
-  await socket.leave(room(sessionId));
+  await socket.leave(roomKey(sessionId));
 
-  const participants = presence.leave(sessionId, socket.data.user.id);
-  io.to(room(sessionId)).emit('presence:update', { sessionId, participants });
+  // Recomputed from the adapter after the socket has left, so the departing tab is
+  // already excluded from the list the remaining participants receive.
+  await broadcastPresence(io, sessionId);
 }

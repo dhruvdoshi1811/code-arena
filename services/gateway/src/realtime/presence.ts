@@ -1,4 +1,4 @@
-import type { PublicUser } from '../domain.js';
+import type { AppIoServer } from './socket.js';
 
 export interface Participant {
   userId: string;
@@ -7,60 +7,49 @@ export interface Participant {
   connections: number;
 }
 
+export const roomKey = (sessionId: string) => `session:${sessionId}`;
+
 /**
- * Who is currently connected to which session.
+ * Who is currently in a session, derived from the Socket.io adapter rather than
+ * tracked beside it.
  *
- * Phase A keeps this in process memory, which is correct for exactly one gateway
- * instance and wrong for two: a second instance would have its own map, and each
- * would broadcast a participant list missing everyone connected to the other.
- * Phase B moves this onto Redis pub/sub, which is what makes the gateway horizontally
- * scalable — the map here is the thing Redis replaces.
+ * Phase A kept a process-local `Map` here, which was correct for exactly one gateway
+ * instance and wrong for two — each would have broadcast a participant list missing
+ * everyone connected to the other. With the Redis adapter attached, `fetchSockets()`
+ * asks every instance and returns the union, so the adapter *is* the source of truth
+ * and there is no second copy of the answer to drift out of sync with it.
  *
- * Connections are counted rather than stored as a set of user ids so that closing one
- * of a user's two tabs does not evict them from the room.
+ * Connections are counted per user rather than deduplicated to a set of ids, so closing
+ * one of a user's two tabs does not evict them from the room.
  */
-class PresenceRegistry {
-  private readonly rooms = new Map<string, Map<string, Participant>>();
+export async function listParticipants(
+  io: AppIoServer,
+  sessionId: string,
+): Promise<Participant[]> {
+  const sockets = await io.in(roomKey(sessionId)).fetchSockets();
 
-  join(sessionId: string, user: PublicUser): Participant[] {
-    let room = this.rooms.get(sessionId);
-    if (!room) {
-      room = new Map();
-      this.rooms.set(sessionId, room);
-    }
+  const byUser = new Map<string, Participant>();
+  for (const socket of sockets) {
+    const user = socket.data.user;
+    if (!user) continue;
 
-    const existing = room.get(user.id);
+    const existing = byUser.get(user.id);
     if (existing) {
       existing.connections += 1;
     } else {
-      room.set(user.id, { userId: user.id, displayName: user.displayName, connections: 1 });
+      byUser.set(user.id, { userId: user.id, displayName: user.displayName, connections: 1 });
     }
-
-    return this.list(sessionId);
   }
 
-  leave(sessionId: string, userId: string): Participant[] {
-    const room = this.rooms.get(sessionId);
-    if (!room) return [];
-
-    const existing = room.get(userId);
-    if (existing) {
-      existing.connections -= 1;
-      if (existing.connections <= 0) room.delete(userId);
-    }
-
-    if (room.size === 0) this.rooms.delete(sessionId);
-    return this.list(sessionId);
-  }
-
-  list(sessionId: string): Participant[] {
-    return [...(this.rooms.get(sessionId)?.values() ?? [])];
-  }
-
-  /** Test helper — presence is process state, so suites must be able to reset it. */
-  clear(): void {
-    this.rooms.clear();
-  }
+  return [...byUser.values()];
 }
 
-export const presence = new PresenceRegistry();
+/** Recompute and fan out to everyone in the room, on every instance. */
+export async function broadcastPresence(
+  io: AppIoServer,
+  sessionId: string,
+): Promise<Participant[]> {
+  const participants = await listParticipants(io, sessionId);
+  io.to(roomKey(sessionId)).emit('presence:update', { sessionId, participants });
+  return participants;
+}
