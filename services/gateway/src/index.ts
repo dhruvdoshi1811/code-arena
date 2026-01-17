@@ -3,15 +3,19 @@ import { closePool, pingDatabase } from './db/pool.js';
 import { createGateway } from './server.js';
 import { SOCKET_IO_PATH } from './realtime/socket.js';
 import { YJS_PATH_PREFIX } from './realtime/yjs.js';
+import { closeRedis, connectRedis, instanceId } from './realtime/redis.js';
 
 async function main(): Promise<void> {
-  // Fail loudly at boot rather than on the first request.
+  // Fail loudly at boot rather than on the first request. Redis must be reachable
+  // before the gateway is built, because the Socket.io adapter subscribes on creation.
   await pingDatabase();
+  await connectRedis();
 
   const gateway = createGateway();
   const port = await gateway.listen(config.port);
 
   console.log(`[gateway] listening on http://localhost:${port} (${config.nodeEnv})`);
+  console.log(`[gateway]   instance  ${instanceId}`);
   console.log(`[gateway]   REST      http://localhost:${port}/api`);
   console.log(`[gateway]   socket.io ws://localhost:${port}${SOCKET_IO_PATH}`);
   console.log(`[gateway]   yjs       ws://localhost:${port}${YJS_PATH_PREFIX}<sessionId>?token=...`);
@@ -24,7 +28,7 @@ async function main(): Promise<void> {
       console.log(`[gateway] ${signal} received, shutting down`);
       gateway
         .close()
-        .then(closePool)
+        .then(() => Promise.all([closePool(), closeRedis()]))
         .then(
           () => process.exit(0),
           (err: unknown) => {
