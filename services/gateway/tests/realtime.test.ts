@@ -1,7 +1,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 import { closePool } from '../src/db/pool.js';
-import { presence, type Participant } from '../src/realtime/presence.js';
+import type { Participant } from '../src/realtime/presence.js';
+import { closeRedis, connectRedis } from '../src/realtime/redis.js';
 import { createGateway, type Gateway } from '../src/server.js';
 import { authed, connectYjs, nextEvent, registerUser, resetDb, type RegisteredUser } from './helpers.js';
 
@@ -27,13 +28,13 @@ function connect(token?: string): ClientSocket {
 const yjsUrl = (id: string, token: string) => `ws://localhost:${port}/yjs/${id}?token=${token}`;
 
 beforeAll(async () => {
+  await connectRedis();
   gateway = createGateway();
   port = await gateway.listen(0);
 });
 
 beforeEach(async () => {
   await resetDb();
-  presence.clear();
 
   host = await registerUser(gateway.app, 'host');
   guest = await registerUser(gateway.app, 'guest');
@@ -52,7 +53,7 @@ afterEach(() => {
 
 afterAll(async () => {
   await gateway.close();
-  await closePool();
+  await Promise.all([closePool(), closeRedis()]);
 });
 
 describe('socket.io handshake', () => {

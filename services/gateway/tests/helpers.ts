@@ -55,6 +55,16 @@ export function nextEvent<T = unknown>(
   });
 }
 
+/** Poll until `predicate` holds. CRDT convergence is eventual by definition, so the
+ *  assertion is "settles on the right answer", not "is right on the next tick". */
+export async function waitFor(predicate: () => boolean, timeoutMs = 10_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate()) {
+    if (Date.now() > deadline) throw new Error('timed out waiting for condition');
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+}
+
 export interface YjsConnectResult {
   ok: boolean;
   status?: number;
