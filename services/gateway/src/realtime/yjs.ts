@@ -12,7 +12,7 @@ import { activeDocRoomCount, handleDocMessage, joinDocRoom, leaveDocRoom } from 
  *  segment: `ws://host/yjs/<sessionId>?token=...`. */
 export const YJS_PATH_PREFIX = '/yjs/';
 
-const SessionIdSchema = z.string().uuid('Not a valid session id');
+const SessionIdSchema = z.uuid('Not a valid session id');
 
 interface YjsSocket extends WebSocket {
   isAlive?: boolean;

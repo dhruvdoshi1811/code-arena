@@ -32,6 +32,21 @@ describe('POST /api/auth/register', () => {
     expect(res.body.error.code).toBe('EMAIL_TAKEN');
   });
 
+  it('normalises email case and surrounding whitespace', async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({ email: '  Ada@Example.COM  ', displayName: 'ada', password: PASSWORD });
+
+    expect(res.status).toBe(201);
+    expect(res.body.user.email).toBe('ada@example.com');
+
+    // And the normalised form is what login matches against.
+    const login = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'ADA@example.com', password: PASSWORD });
+    expect(login.status).toBe(200);
+  });
+
   it('rejects a short password with 400', async () => {
     const res = await request(app)
       .post('/api/auth/register')

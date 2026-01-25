@@ -8,7 +8,9 @@ import { signAccessToken } from '../auth/jwt.js';
 import { hashPassword, verifyPassword } from '../auth/password.js';
 import { currentUser, requireAuth } from '../auth/middleware.js';
 
-const email = z.string().trim().toLowerCase().email().max(254);
+// Normalise first, then validate: `z.email()` checks the raw input, so trimming and
+// lowercasing have to happen upstream of it rather than chained after.
+const email = z.string().trim().toLowerCase().pipe(z.email().max(254));
 const password = z.string().min(8, 'Password must be at least 8 characters').max(200);
 
 const RegisterSchema = z.object({

@@ -6,7 +6,7 @@ import { conflict, forbidden, notFound } from '../errors.js';
 import { currentUser, requireAuth } from '../auth/middleware.js';
 
 const CreateSchema = z.object({ language: z.enum(LANGUAGES) });
-const IdParam = z.object({ id: z.string().uuid('Not a valid session id') });
+const IdParam = z.object({ id: z.uuid('Not a valid session id') });
 
 export const sessionRoutes = Router();
 

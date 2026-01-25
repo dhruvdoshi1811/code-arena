@@ -34,7 +34,7 @@ interface SocketData {
 export type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, object, SocketData>;
 export type AppIoServer = Server<ClientToServerEvents, ServerToClientEvents, object, SocketData>;
 
-const JoinSchema = z.object({ sessionId: z.string().uuid('Not a valid session id') });
+const JoinSchema = z.object({ sessionId: z.uuid('Not a valid session id') });
 
 /** Mirrors the HTTP error envelope so a client sees the same `code` for the same
  *  failure whether it arrived over REST or over a socket. */
