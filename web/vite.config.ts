@@ -20,25 +20,18 @@ export default defineConfig({
     ],
   },
   build: {
-    // Monaco is a large dependency and this app imports the full barrel, which drags in
-    // every bundled language grammar. Trimming it to just python and javascript means
-    // importing `editor.api` plus individual contributions by hand and is a real
-    // optimisation to make later — not something to half-do now and misreport.
-    chunkSizeWarningLimit: 1500,
-    rollupOptions: {
-      output: {
-        // Keyed on module path, not on package entry. The object form attributes a
-        // module to whichever listed package reached it first, so Monaco's core landed
-        // in the collab chunk simply because y-monaco imported it — one Monaco instance
-        // still, but a split that lied about what was in it.
-        manualChunks(id: string) {
-          if (id.includes('node_modules/monaco-editor')) return 'monaco';
-          if (/node_modules[/\\](yjs|y-websocket|y-monaco|y-protocols|lib0)[/\\]/.test(id)) {
-            return 'collab';
-          }
-          return undefined;
-        },
-      },
-    },
+    // Chunking is left to Rolldown's defaults, deliberately.
+    //
+    // Under Vite 7/Rollup a hand-written `manualChunks` produced a clean monaco/collab
+    // split. Under Vite 8/Rolldown the same function yields chunks whose contents do not
+    // match their names, and the grouping semantics differ enough that a split we cannot
+    // verify is worse than no split — a bundle labelled "collab" holding Monaco misleads
+    // whoever reads it next. Rolldown's own splitting is competent; take it.
+    //
+    // The real win here is not chunking at all: this app imports the full monaco-editor
+    // barrel, which drags in every bundled language grammar. Narrowing it to `editor.api`
+    // plus the python and javascript contributions is the optimisation worth doing, and
+    // it belongs with the language work in Phase D rather than here.
+    chunkSizeWarningLimit: 2000,
   },
 });
