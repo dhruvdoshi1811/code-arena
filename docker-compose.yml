@@ -18,8 +18,8 @@ services:
       timeout: 5s
       retries: 10
 
-  # Unused in Phase A. Presence moves onto Redis pub/sub in Phase B, and
-  # execution status/output fan-out lands on it in Phase E.
+  # Carries presence and the cross-instance Yjs bridge since Phase B; execution
+  # status/output fan-out lands on it in Phase E.
   redis:
     image: redis:7-alpine
     container_name: codearena-redis
@@ -31,5 +31,64 @@ services:
       timeout: 5s
       retries: 10
 
+  # Kafka API without Kafka's footprint: one process, no ZooKeeper, no JVM — which
+  # matters on a 16GB machine also running Postgres, Redis, and a Kubernetes cluster
+  # from Phase D onward. Wire-compatible, so the clients are real Kafka clients.
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v25.2.5
+    container_name: codearena-redpanda
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --memory=1G
+      - --overprovisioned
+      - --node-id=0
+      - --check=false
+      # Two listeners: `internal` for containers on this network, `external` for
+      # processes on the host. They must advertise different addresses or host clients
+      # get handed a broker address only reachable from inside Docker.
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:19092
+      - --rpc-addr=0.0.0.0:33145
+      - --advertise-rpc-addr=redpanda:33145
+    ports:
+      - "19092:19092"
+      - "9644:9644"
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Creates the topic explicitly rather than relying on auto-creation, which would
+  # give it a single partition and silently serialise every session's submissions.
+  redpanda-init:
+    image: docker.redpanda.com/redpandadata/redpanda:v25.2.5
+    container_name: codearena-redpanda-init
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    # Kept on one line deliberately: a folded YAML scalar turns the continuation into a
+    # second shell line, which silently drops --brokers and dials localhost instead.
+    command: ["rpk topic create code-submissions code-submissions-test --partitions 3 --replicas 1 --brokers redpanda:9092 || true"]
+    restart: "no"
+
+  # Browse topics, messages, and consumer-group lag at http://localhost:8080.
+  redpanda-console:
+    image: docker.redpanda.com/redpandadata/console:v3.5.0
+    container_name: codearena-redpanda-console
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+    ports:
+      - "8080:8080"
+
 volumes:
   postgres-data:
+  redpanda-data:
