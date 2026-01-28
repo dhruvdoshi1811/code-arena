@@ -35,3 +35,36 @@ export interface Session {
 export function isParticipant(session: Session, userId: string): boolean {
   return session.hostId === userId || session.guestId === userId;
 }
+
+export type SubmissionStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'TIMEOUT';
+
+export interface Submission {
+  id: string;
+  sessionId: string;
+  userId: string;
+  language: Language;
+  code: string;
+  status: SubmissionStatus;
+  output: string | null;
+  exitCode: number | null;
+  createdAt: Date;
+  startedAt: Date | null;
+  finishedAt: Date | null;
+}
+
+/**
+ * The Kafka message body, and the contract between two services in two languages.
+ *
+ * Mirrored by `SubmissionEvent` in the Go orchestrator's `internal/event` package —
+ * the JSON field names here are the interface, so changing one without the other is
+ * how this pipeline breaks silently.
+ */
+export interface SubmissionEvent {
+  submissionId: string;
+  sessionId: string;
+  userId: string;
+  language: Language;
+  code: string;
+  createdAt: string;
+}
+
