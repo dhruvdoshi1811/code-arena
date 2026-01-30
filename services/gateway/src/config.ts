@@ -10,6 +10,9 @@ const EnvSchema = z.object({
   REDIS_URL: z.url(),
   JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters'),
   JWT_EXPIRES_IN: z.string().default('7d'),
+  KAFKA_BROKERS: z.string().default('localhost:19092'),
+  KAFKA_CLIENT_ID: z.string().default('codearena-gateway'),
+  KAFKA_SUBMISSIONS_TOPIC: z.string().default('code-submissions'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
 });
 
@@ -33,6 +36,11 @@ export const config = {
   redisUrl: env.REDIS_URL,
   jwtSecret: env.JWT_SECRET,
   jwtExpiresIn: env.JWT_EXPIRES_IN,
+  kafkaBrokers: env.KAFKA_BROKERS.split(',')
+    .map((broker) => broker.trim())
+    .filter(Boolean),
+  kafkaClientId: env.KAFKA_CLIENT_ID,
+  kafkaSubmissionsTopic: env.KAFKA_SUBMISSIONS_TOPIC,
   corsOrigins: env.CORS_ORIGIN.split(',')
     .map((origin) => origin.trim())
     .filter(Boolean),
