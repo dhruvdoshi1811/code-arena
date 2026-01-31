@@ -4,12 +4,14 @@ import { createGateway } from './server.js';
 import { SOCKET_IO_PATH } from './realtime/socket.js';
 import { YJS_PATH_PREFIX } from './realtime/yjs.js';
 import { closeRedis, connectRedis, instanceId } from './realtime/redis.js';
+import { connectKafka, disconnectKafka } from './kafka/producer.js';
 
 async function main(): Promise<void> {
   // Fail loudly at boot rather than on the first request. Redis must be reachable
   // before the gateway is built, because the Socket.io adapter subscribes on creation.
   await pingDatabase();
   await connectRedis();
+  await connectKafka();
 
   const gateway = createGateway();
   const port = await gateway.listen(config.port);
@@ -28,7 +30,7 @@ async function main(): Promise<void> {
       console.log(`[gateway] ${signal} received, shutting down`);
       gateway
         .close()
-        .then(() => Promise.all([closePool(), closeRedis()]))
+        .then(() => Promise.all([closePool(), closeRedis(), disconnectKafka()]))
         .then(
           () => process.exit(0),
           (err: unknown) => {
