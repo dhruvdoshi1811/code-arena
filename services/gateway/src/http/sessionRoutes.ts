@@ -4,6 +4,7 @@ import { claimGuestSeat, createSession, endSession, findSessionById } from '../d
 import { isParticipant, LANGUAGES } from '../domain.js';
 import { conflict, forbidden, notFound } from '../errors.js';
 import { currentUser, requireAuth } from '../auth/middleware.js';
+import { submissionRoutes } from './submissionRoutes.js';
 
 const CreateSchema = z.object({ language: z.enum(LANGUAGES) });
 const IdParam = z.object({ id: z.uuid('Not a valid session id') });
@@ -11,6 +12,10 @@ const IdParam = z.object({ id: z.uuid('Not a valid session id') });
 export const sessionRoutes = Router();
 
 sessionRoutes.use(requireAuth);
+
+// Submissions are scoped to a session and re-derive the participant checks themselves,
+// so they mount as a child router rather than reaching across from a sibling.
+sessionRoutes.use('/:id/submissions', submissionRoutes);
 
 sessionRoutes.post('/', async (req, res) => {
   const { language } = CreateSchema.parse(req.body);
