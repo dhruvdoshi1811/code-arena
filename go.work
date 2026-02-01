@@ -1,0 +1,5 @@
+go 1.26.5
+
+// Single Go module today. Declared at the repo root so editors resolve imports from a
+// checkout of the whole monorepo rather than only when opened at services/orchestrator.
+use ./services/orchestrator
