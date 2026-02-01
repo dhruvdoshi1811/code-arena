@@ -36,6 +36,12 @@ const REMOTE_ORIGIN = Symbol('codearena.remote');
 
 const channelFor = (sessionId: string) => `codearena:yjs:${sessionId}`;
 
+/** A failed bridge publish costs the other instances one update; it must never become
+ *  an unhandled rejection that ends the process. */
+function reportBridge(err: unknown): void {
+  if (!config.isTest) console.error('[ydoc] bridge publish failed', err);
+}
+
 interface DocRoom {
   doc: Y.Doc;
   awareness: Awareness;
@@ -92,7 +98,7 @@ function getOrCreateRoom(sessionId: string): DocRoom {
     broadcast(room, encoding.toUint8Array(encoder));
 
     if (origin !== REMOTE_ORIGIN) {
-      void publishBinary(channelFor(sessionId), envelope(BRIDGE_DOC, update));
+      void publishBinary(channelFor(sessionId), envelope(BRIDGE_DOC, update)).catch(reportBridge);
     }
   });
 
@@ -122,7 +128,9 @@ function getOrCreateRoom(sessionId: string): DocRoom {
       broadcast(room, encoding.toUint8Array(encoder));
 
       if (origin !== REMOTE_ORIGIN) {
-        void publishBinary(channelFor(sessionId), envelope(BRIDGE_AWARENESS, update));
+        void publishBinary(channelFor(sessionId), envelope(BRIDGE_AWARENESS, update)).catch(
+          reportBridge,
+        );
       }
     },
   );

@@ -99,7 +99,12 @@ export function attachYjsWebSocket(httpServer: HttpServer): YjsTransport {
         });
 
         client.on('close', () => {
-          void leaveDocRoom(session.id, client);
+          // Cleanup unsubscribes from Redis, which rejects if the connection is already
+          // going away during shutdown. An uncaught rejection here would take the whole
+          // process down over a socket that was closing anyway.
+          void leaveDocRoom(session.id, client).catch((err: unknown) => {
+            if (!config.isTest) console.error('[yjs] cleanup failed', err);
+          });
         });
 
         client.on('error', (err) => {
