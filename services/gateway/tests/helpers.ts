@@ -2,7 +2,10 @@ import type { Express } from 'express';
 import request from 'supertest';
 import { WebSocket } from 'ws';
 import type { Socket as ClientSocket } from 'socket.io-client';
+import * as Y from 'yjs';
+import { WebsocketProvider } from 'y-websocket';
 import { pool } from '../src/db/pool.js';
+import { CODE_TEXT_KEY } from '../src/realtime/ydoc.js';
 import type { PublicUser } from '../src/domain.js';
 
 export const PASSWORD = 'correct-horse-battery-staple';
@@ -14,7 +17,50 @@ export interface RegisteredUser {
 
 /** Sessions first — it carries the foreign keys into users. */
 export async function resetDb(): Promise<void> {
-  await pool.query('TRUNCATE sessions, users RESTART IDENTITY CASCADE');
+  await pool.query('TRUNCATE submissions, sessions, users RESTART IDENTITY CASCADE');
+}
+
+export interface DocClient {
+  doc: Y.Doc;
+  text: Y.Text;
+  provider: WebsocketProvider;
+  close(): void;
+}
+
+/**
+ * Open the session's CRDT document the way a browser tab would.
+ *
+ * Submission tests need this: the gateway reads the code it publishes from its own
+ * Y.Doc, so a session with no connected document has nothing to submit.
+ */
+export function connectDocClient(port: number, sessionId: string, token: string): DocClient {
+  const doc = new Y.Doc();
+  const provider = new WebsocketProvider(`ws://localhost:${port}/yjs`, sessionId, doc, {
+    params: { token },
+    WebSocketPolyfill: WebSocket as unknown as typeof globalThis.WebSocket,
+    // Without this, providers in one process sync over a BroadcastChannel and the
+    // server is bypassed entirely.
+    disableBc: true,
+  });
+
+  return {
+    doc,
+    provider,
+    text: doc.getText(CODE_TEXT_KEY),
+    close() {
+      // `WebsocketProvider.destroy()` leaves the Awareness timer running, which keeps
+      // the process alive after the suite finishes.
+      provider.awareness.destroy();
+      provider.destroy();
+      doc.destroy();
+    },
+  };
+}
+
+export function whenSynced(client: DocClient): Promise<void> {
+  return client.provider.synced
+    ? Promise.resolve()
+    : new Promise<void>((resolve) => client.provider.once('sync', () => resolve()));
 }
 
 export async function registerUser(app: Express, name: string): Promise<RegisteredUser> {
