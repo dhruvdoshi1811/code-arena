@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import { ApiError, api, gatewayHttpUrl, type PublicUser, type Session } from '../api';
+import {
+  ApiError,
+  api,
+  gatewayHttpUrl,
+  type PublicUser,
+  type Session,
+  type Submission,
+} from '../api';
 import { colorForUser } from '../auth';
 import { createCollab, type Collab } from '../collab';
 import { CodeEditor } from './CodeEditor';
@@ -29,6 +36,9 @@ export function SessionPage({
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [docStatus, setDocStatus] = useState<DocStatus>('connecting');
   const [copied, setCopied] = useState(false);
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [running, setRunning] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,6 +97,35 @@ export function SessionPage({
     };
   }, [session, sessionId, token]);
 
+  // Loaded once on entry. There is no polling and no live transition: a submission is
+  // QUEUED and stays QUEUED until Phase E pushes status and output over the socket.
+  useEffect(() => {
+    if (!session) return;
+    let cancelled = false;
+    api
+      .listSubmissions(token, sessionId)
+      .then(({ submissions: loaded }) => {
+        if (!cancelled) setSubmissions(loaded);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [session, sessionId, token]);
+
+  async function run() {
+    setRunning(true);
+    setRunError(null);
+    try {
+      const { submission } = await api.createSubmission(token, sessionId);
+      setSubmissions((current) => [submission, ...current].slice(0, 20));
+    } catch (err) {
+      setRunError(err instanceof ApiError ? err.message : 'Could not queue the submission');
+    } finally {
+      setRunning(false);
+    }
+  }
+
   if (error) {
     return (
       <div className="centered">
@@ -128,6 +167,9 @@ export function SessionPage({
           {copied ? 'Copied' : 'Copy session id'}
         </button>
         <span className="spacer" />
+        <button type="button" onClick={() => void run()} disabled={running || docStatus !== 'connected'}>
+          {running ? 'Queueing…' : 'Run'}
+        </button>
         <span className={`status status-${docStatus}`}>document: {docStatus}</span>
         <code className="muted small">{gatewayHttpUrl}</code>
       </header>
@@ -153,6 +195,27 @@ export function SessionPage({
           <p className="muted small">
             Cursors come from Yjs awareness on the document socket; this list comes from
             Socket.io. Both cross gateway instances via Redis.
+          </p>
+
+          <h2>Submissions</h2>
+          {runError && <p className="error small">{runError}</p>}
+          {submissions.length === 0 && <p className="muted small">Nothing queued yet</p>}
+          <ul className="submissions">
+            {submissions.map((submission) => (
+              <li key={submission.id}>
+                <span className={`chip chip-${submission.status.toLowerCase()}`}>
+                  {submission.status}
+                </span>
+                <code className="small">{submission.id.slice(0, 8)}</code>
+                <span className="muted small">
+                  {new Date(submission.createdAt).toLocaleTimeString()}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="muted small">
+            Run publishes to Kafka and returns 202 — queued, not executed. The Go
+            orchestrator consumes and logs it. Execution arrives in Phase D.
           </p>
         </aside>
       </div>

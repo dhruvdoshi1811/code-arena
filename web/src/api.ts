@@ -24,6 +24,22 @@ export interface Session {
   endedAt: string | null;
 }
 
+export type SubmissionStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'TIMEOUT';
+
+export interface Submission {
+  id: string;
+  sessionId: string;
+  userId: string;
+  language: Language;
+  code: string;
+  status: SubmissionStatus;
+  output: string | null;
+  exitCode: number | null;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
 /** Mirrors the gateway's `{ error: { code, message } }` envelope, so the UI can branch
  *  on a stable code instead of matching on prose. */
 export class ApiError extends Error {
@@ -91,4 +107,16 @@ export const api = {
 
   getSession: (token: string, sessionId: string) =>
     request<{ session: Session }>(`/api/sessions/${sessionId}`, {}, token),
+
+  /** Returns 202: the submission is durably queued, not executed. Nothing here waits
+   *  for a result — status transitions and output arrive over the socket in Phase E. */
+  createSubmission: (token: string, sessionId: string) =>
+    request<{ submission: Submission }>(
+      `/api/sessions/${sessionId}/submissions`,
+      { method: 'POST' },
+      token,
+    ),
+
+  listSubmissions: (token: string, sessionId: string) =>
+    request<{ submissions: Submission[] }>(`/api/sessions/${sessionId}/submissions`, {}, token),
 };

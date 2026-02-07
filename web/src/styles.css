@@ -214,3 +214,46 @@ code {
   border-radius: 50%;
   flex: none;
 }
+
+.submissions {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.submissions li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.chip {
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  border-radius: 4px;
+  flex: none;
+}
+
+.chip-queued {
+  color: #0b1120;
+  background: var(--accent);
+}
+
+.chip-running {
+  color: #0b1120;
+  background: #facc15;
+}
+
+.chip-completed {
+  color: #0b1120;
+  background: var(--ok);
+}
+
+.chip-failed,
+.chip-timeout {
+  color: #0b1120;
+  background: var(--danger);
+}
