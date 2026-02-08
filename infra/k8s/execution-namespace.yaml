@@ -1,0 +1,78 @@
+# The blast radius for untrusted code.
+#
+# Apply with: kubectl apply -f infra/k8s/execution-namespace.yaml
+#
+# Every guard here is defence in depth behind the per-Job settings the orchestrator
+# builds (see services/orchestrator/internal/k8s/job.go). The Job spec is the primary
+# boundary; this namespace is what holds if a Job is ever created without one.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: codearena-exec
+  labels:
+    app.kubernetes.io/part-of: codearena
+    # Enforce the restricted Pod Security Standard at admission. A pod that asks for
+    # privilege, host namespaces, or a root user is rejected by the API server before
+    # it is ever scheduled — this does not depend on the orchestrator asking nicely.
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+
+---
+# Bounds the whole namespace, not one Job. A burst of submissions cannot collectively
+# exhaust the node even though each individual Job is small and well behaved.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: codearena-exec-quota
+  namespace: codearena-exec
+spec:
+  hard:
+    pods: "24"
+    requests.cpu: "2"
+    requests.memory: 2Gi
+    limits.cpu: "4"
+    limits.memory: 4Gi
+    count/jobs.batch: "50"
+
+---
+# Defaults and ceilings for anything that lands here. If a Job is ever created without
+# explicit resources, it still gets limits rather than unbounded access to the node.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: codearena-exec-limits
+  namespace: codearena-exec
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: 500m
+        memory: 256Mi
+      defaultRequest:
+        cpu: 100m
+        memory: 64Mi
+      max:
+        cpu: "1"
+        memory: 512Mi
+
+---
+# Deny all ingress and egress for execution pods.
+#
+# HONEST LIMITATION: kind's default CNI (kindnet) does not implement NetworkPolicy, so
+# this is NOT enforced on the local cluster — it is correct, and it is enforced by the
+# VPC CNI on EKS in Phase F, but nothing local proves it. Do not claim network isolation
+# as demonstrated until it is tested somewhere that enforces it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: codearena-exec-deny-all
+  namespace: codearena-exec
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: execution
+  policyTypes:
+    - Ingress
+    - Egress
