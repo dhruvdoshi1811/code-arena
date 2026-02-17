@@ -17,7 +17,8 @@
     "test:watch": "dotenv -e .env.test -- vitest",
     "proof": "dotenv -e .env -- tsx scripts/two-clients.ts",
     "proof:collab": "dotenv -e .env -- tsx scripts/concurrent-edit.ts",
-    "proof:burst": "dotenv -e .env -- tsx scripts/burst.ts"
+    "proof:burst": "dotenv -e .env -- tsx scripts/burst.ts",
+    "proof:exec": "dotenv -e .env -- tsx scripts/execution-proof.ts"
   },
   "dependencies": {
     "@confluentinc/kafka-javascript": "^1.10.0",
