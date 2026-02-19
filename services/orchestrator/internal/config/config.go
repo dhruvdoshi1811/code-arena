@@ -18,6 +18,8 @@ type Config struct {
 	LogLevel         string
 
 	DatabaseURL string
+	// RedisURL carries live execution events to the gateway for relay to browsers.
+	RedisURL string
 	// Empty means in-cluster config, then ~/.kube/config.
 	Kubeconfig string
 
@@ -40,6 +42,7 @@ func Load() (Config, error) {
 		LogLevel:         env("LOG_LEVEL", "info"),
 
 		DatabaseURL: env("DATABASE_URL", "postgres://codearena:codearena@localhost:5432/codearena"),
+		RedisURL:    env("REDIS_URL", "redis://localhost:6379"),
 		Kubeconfig:  env("KUBECONFIG_PATH", ""),
 
 		ExecutionNamespace:       env("EXECUTION_NAMESPACE", "codearena-exec"),
