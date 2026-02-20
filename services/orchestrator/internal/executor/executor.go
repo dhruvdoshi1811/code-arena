@@ -18,19 +18,35 @@ import (
 	"github.com/dhruvdoshi1811/code-arena/services/orchestrator/internal/event"
 	"github.com/dhruvdoshi1811/code-arena/services/orchestrator/internal/k8s"
 	"github.com/dhruvdoshi1811/code-arena/services/orchestrator/internal/store"
+	"github.com/dhruvdoshi1811/code-arena/services/orchestrator/internal/stream"
 )
 
 // Executor turns submission events into Kubernetes Jobs.
 type Executor struct {
 	client    kubernetes.Interface
 	store     *store.Store
+	stream    *stream.Publisher
 	log       *slog.Logger
 	namespace string
 	limits    k8s.Limits
 }
 
-func New(client kubernetes.Interface, st *store.Store, log *slog.Logger, namespace string, limits k8s.Limits) *Executor {
-	return &Executor{client: client, store: st, log: log, namespace: namespace, limits: limits}
+func New(
+	client kubernetes.Interface,
+	st *store.Store,
+	publisher *stream.Publisher,
+	log *slog.Logger,
+	namespace string,
+	limits k8s.Limits,
+) *Executor {
+	return &Executor{
+		client:    client,
+		store:     st,
+		stream:    publisher,
+		log:       log,
+		namespace: namespace,
+		limits:    limits,
+	}
 }
 
 // Execute creates the Job, follows its output, and records the outcome.
@@ -87,14 +103,23 @@ func (e *Executor) Execute(ctx context.Context, sub event.SubmissionEvent) error
 
 	log.Info("execution job created", "job", jobName, "namespace", e.namespace)
 
+	// The batcher is the consumer that the OnLine hook was added for in Phase D. It is
+	// closed before the outcome is published so its final flush lands ahead of the
+	// terminal status — a client must never see COMPLETED and then more output.
+	batcher := e.stream.NewBatcher(ctx, sub.SessionID, sub.SubmissionID)
+	defer batcher.Close()
+
 	// Start following logs before waiting for the outcome. This ordering is the whole
 	// reason a timed-out submission still has output: the deadline deletes the pod.
-	output := &k8s.OutputBuffer{}
+	output := &k8s.OutputBuffer{
+		OnLine: func(line string) { batcher.Add(ctx, line) },
+	}
 	waitForLogs := k8s.StartFollowing(ctx, e.client, e.namespace, sub.SubmissionID, output,
 		func(podName string) {
 			if err := e.store.MarkRunning(ctx, sub.SubmissionID); err != nil {
 				log.Error("could not mark running", "error", err)
 			}
+			e.stream.PublishStatus(ctx, sub.SessionID, sub.SubmissionID, string(store.StatusRunning), nil)
 			log.Info("execution started", "pod", podName)
 		},
 	)
@@ -111,6 +136,10 @@ func (e *Executor) Execute(ctx context.Context, sub event.SubmissionEvent) error
 	<-drain.Done()
 
 	log.Info("execution finished", "status", status, "outputBytes", len(output.String()))
+
+	// Flush any buffered lines before announcing the terminal status, so the ordering
+	// a client observes matches the ordering that actually happened.
+	batcher.Close()
 
 	return e.finish(ctx, sub, store.Result{
 		Status:   status,
@@ -214,7 +243,17 @@ func (e *Executor) finish(ctx context.Context, sub event.SubmissionEvent, result
 	// mid-execution does not strand a submission at RUNNING forever.
 	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
-	return e.store.MarkFinished(persistCtx, sub.SubmissionID, result)
+
+	// Database first, stream second. The row is the record; the event is a notification
+	// that the record changed, so a client told COMPLETED can always read back a
+	// COMPLETED row rather than racing ahead of it.
+	err := e.store.MarkFinished(persistCtx, sub.SubmissionID, result)
+
+	e.stream.PublishStatus(
+		persistCtx, sub.SessionID, sub.SubmissionID, string(result.Status), result.ExitCode,
+	)
+
+	return err
 }
 
 func ptrBool(b bool) *bool { return &b }
