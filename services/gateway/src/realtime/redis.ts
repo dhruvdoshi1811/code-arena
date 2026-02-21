@@ -60,6 +60,29 @@ export async function publishBinary(channel: string, payload: Uint8Array): Promi
   await docPub.publish(channel, Buffer.from(payload));
 }
 
+// --- text pattern subscriptions (execution events) --------------------------------
+//
+// A separate client again, and for the same reason as the document bridge: a client in
+// pattern-subscribe mode should not be shared with one doing exact-channel work.
+const patternSub = createClient('pattern-sub');
+const patternHandlers = new Map<string, (channel: string, message: string) => void>();
+
+patternSub.on('pmessage', (pattern: string, channel: string, message: string) => {
+  patternHandlers.get(pattern)?.(channel, message);
+});
+
+export async function subscribePattern(
+  pattern: string,
+  handler: (channel: string, message: string) => void,
+): Promise<void> {
+  patternHandlers.set(pattern, handler);
+  await patternSub.psubscribe(pattern);
+}
+
+export async function publishText(channel: string, message: string): Promise<void> {
+  await docPub.publish(channel, message);
+}
+
 /** Waits until every client can serve commands. Call before the Socket.io adapter is
  *  created, while no client has entered subscriber mode yet. */
 export async function connectRedis(): Promise<void> {
