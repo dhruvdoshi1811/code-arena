@@ -21,6 +21,7 @@ import (
 	"github.com/dhruvdoshi1811/code-arena/services/orchestrator/internal/executor"
 	"github.com/dhruvdoshi1811/code-arena/services/orchestrator/internal/k8s"
 	"github.com/dhruvdoshi1811/code-arena/services/orchestrator/internal/store"
+	"github.com/dhruvdoshi1811/code-arena/services/orchestrator/internal/stream"
 )
 
 func main() {
@@ -47,13 +48,24 @@ func main() {
 	}
 	defer st.Close()
 
+	publisher, err := stream.New(cfg.RedisURL, log)
+	if err != nil {
+		log.Error("could not create the event publisher", "error", err)
+		os.Exit(1)
+	}
+	if err := publisher.Ping(ctx); err != nil {
+		log.Error("could not reach redis", "error", err)
+		os.Exit(1)
+	}
+	defer func() { _ = publisher.Close() }()
+
 	limits := k8s.Limits{
 		CPU:             cfg.ExecutionCPU,
 		Memory:          cfg.ExecutionMemory,
 		DeadlineSeconds: cfg.ExecutionDeadlineSeconds,
 		TTLSeconds:      cfg.ExecutionTTLSeconds,
 	}
-	exec := executor.New(clientset, st, log, cfg.ExecutionNamespace, limits)
+	exec := executor.New(clientset, st, publisher, log, cfg.ExecutionNamespace, limits)
 
 	log.Info("orchestrator starting",
 		"brokers", cfg.Brokers,
