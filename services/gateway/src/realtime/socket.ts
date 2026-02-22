@@ -19,6 +19,19 @@ export type Ack<T> = ({ ok: true } & T) | AckError;
 
 interface ServerToClientEvents {
   'presence:update': (payload: { sessionId: string; participants: Participant[] }) => void;
+  // Relayed from the orchestrator via Redis; see ./execution.ts. Both go to the session
+  // room, so only vetted participants receive them.
+  'submission:status': (payload: {
+    submissionId: string;
+    sessionId: string;
+    status: string;
+    exitCode: number | null;
+  }) => void;
+  'submission:output': (payload: {
+    submissionId: string;
+    sessionId: string;
+    lines: string[];
+  }) => void;
 }
 
 interface ClientToServerEvents {
