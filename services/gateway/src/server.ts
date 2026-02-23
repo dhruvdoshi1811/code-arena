@@ -1,6 +1,7 @@
 import http from 'node:http';
 import type { Express } from 'express';
 import { createApp } from './app.js';
+import { attachExecutionRelay } from './realtime/execution.js';
 import { attachSocketIo, type AppIoServer } from './realtime/socket.js';
 import { attachYjsWebSocket, type YjsTransport } from './realtime/yjs.js';
 
@@ -26,6 +27,13 @@ export function createGateway(): Gateway {
   const httpServer = http.createServer(app);
   const io = attachSocketIo(httpServer);
   const yjs = attachYjsWebSocket(httpServer);
+
+  // Subscribes this instance to execution events from the orchestrator. Fire-and-forget
+  // because a gateway that cannot stream output should still serve editing and
+  // submission — the results remain readable from Postgres either way.
+  void attachExecutionRelay(io).catch((err: unknown) => {
+    console.error('[gateway] execution relay unavailable', err);
+  });
 
   return {
     app,
