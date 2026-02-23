@@ -7,6 +7,7 @@ import { currentUser, requireAuth } from '../auth/middleware.js';
 import { resolveJoinableSession } from '../realtime/auth.js';
 import { readDocumentText } from '../realtime/ydoc.js';
 import { publishSubmission } from '../kafka/producer.js';
+import { publishQueued } from '../realtime/execution.js';
 
 const IdParam = z.object({ id: z.uuid('Not a valid session id') });
 
@@ -75,6 +76,13 @@ submissionRoutes.post('/', async (req, res) => {
       'Could not queue the submission — the broker is unreachable',
     );
   }
+
+  // Tell the room a run has started. The submitter learns this from the response
+  // below; without this the *other* participant sees nothing until first output.
+  // Best-effort, exactly like every other execution event — the row is already durable.
+  publishQueued(session.id, submission.id).catch((publishErr: unknown) => {
+    if (!process.env.VITEST) console.error('[submissions] failed to announce queued', publishErr);
+  });
 
   // 202, not 200: the claim being made is "durably queued", which is true only after
   // the broker acknowledged the record. It is emphatically not "this has run".
