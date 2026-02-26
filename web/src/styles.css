@@ -183,9 +183,73 @@ code {
   min-height: 0;
 }
 
+/* Editor above, console below — the two things a participant watches during a run. */
+.workspace {
+  display: grid;
+  grid-template-rows: 1fr 220px;
+  min-width: 0;
+  min-height: 0;
+}
+
 .editor {
   min-width: 0;
-  height: 100%;
+  min-height: 0;
+}
+
+.output {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #0a1020;
+  border-top: 1px solid var(--border);
+}
+
+.output-header {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.output-header h2 {
+  margin: 0;
+}
+
+.output-body {
+  flex: 1;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse {
+    animation: none;
+  }
 }
 
 .sidebar {
