@@ -7,10 +7,12 @@ import {
   type PublicUser,
   type Session,
   type Submission,
+  type SubmissionStatus,
 } from '../api';
 import { colorForUser } from '../auth';
 import { createCollab, type Collab } from '../collab';
 import { CodeEditor } from './CodeEditor';
+import { OutputPanel, reconcile, type ActiveRun } from './OutputPanel';
 
 interface Participant {
   userId: string;
@@ -39,6 +41,7 @@ export function SessionPage({
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
+  const [activeRun, setActiveRun] = useState<ActiveRun | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,6 +91,47 @@ export function SessionPage({
     socket.on('presence:update', (payload: { participants: Participant[] }) => {
       setParticipants(payload.participants);
     });
+
+    // Both participants see every transition, including runs the other one started —
+    // the QUEUED event is published by the gateway on submit for exactly that reason.
+    socket.on(
+      'submission:status',
+      (payload: { submissionId: string; status: SubmissionStatus; exitCode: number | null }) => {
+        setActiveRun((current) =>
+          current?.submissionId === payload.submissionId
+            ? { ...current, status: payload.status, exitCode: payload.exitCode }
+            : { submissionId: payload.submissionId, status: payload.status, exitCode: payload.exitCode, lines: [] },
+        );
+        setSubmissions((current) =>
+          current.map((submission) =>
+            submission.id === payload.submissionId
+              ? { ...submission, status: payload.status, exitCode: payload.exitCode }
+              : submission,
+          ),
+        );
+
+        // Terminal: fetch the persisted row so a tab that joined mid-run ends up with
+        // the complete output rather than only the tail it happened to witness.
+        if (['COMPLETED', 'FAILED', 'TIMEOUT'].includes(payload.status)) {
+          api
+            .listSubmissions(token, sessionId)
+            .then(({ submissions: fresh }) => {
+              setSubmissions(fresh);
+              const persisted = fresh.find((s) => s.id === payload.submissionId);
+              if (persisted) setActiveRun((current) => (current ? reconcile(current, persisted) : current));
+            })
+            .catch(() => undefined);
+        }
+      },
+    );
+
+    socket.on('submission:output', (payload: { submissionId: string; lines: string[] }) => {
+      setActiveRun((current) =>
+        current?.submissionId === payload.submissionId
+          ? { ...current, lines: [...current.lines, ...payload.lines] }
+          : current,
+      );
+    });
     socket.on('connect_error', (err: Error & { data?: { message?: string } }) => {
       setError(err.data?.message ?? err.message);
     });
@@ -119,6 +163,12 @@ export function SessionPage({
     try {
       const { submission } = await api.createSubmission(token, sessionId);
       setSubmissions((current) => [submission, ...current].slice(0, 20));
+      setActiveRun({
+        submissionId: submission.id,
+        status: submission.status,
+        exitCode: submission.exitCode,
+        lines: [],
+      });
     } catch (err) {
       setRunError(err instanceof ApiError ? err.message : 'Could not queue the submission');
     } finally {
@@ -175,7 +225,10 @@ export function SessionPage({
       </header>
 
       <div className="session-body">
-        <CodeEditor collab={collab} language={session.language} />
+        <div className="workspace">
+          <CodeEditor collab={collab} language={session.language} />
+          <OutputPanel run={activeRun} />
+        </div>
 
         <aside className="sidebar">
           <h2>In this session</h2>
