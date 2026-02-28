@@ -1,5 +1,4 @@
-/** Shared domain types. Rows come out of Postgres snake_case; everything above the
- *  db layer speaks camelCase, and the mapping happens once, in `src/db/`. */
+/** Shared domain types. */
 
 export const LANGUAGES = ['python', 'javascript'] as const;
 export type Language = (typeof LANGUAGES)[number];
@@ -52,13 +51,7 @@ export interface Submission {
   finishedAt: Date | null;
 }
 
-/**
- * The Kafka message body, and the contract between two services in two languages.
- *
- * Mirrored by `SubmissionEvent` in the Go orchestrator's `internal/event` package —
- * the JSON field names here are the interface, so changing one without the other is
- * how this pipeline breaks silently.
- */
+/** The Kafka message body, and the contract between two services in two languages. */
 export interface SubmissionEvent {
   submissionId: string;
   sessionId: string;

@@ -19,8 +19,7 @@ export type Ack<T> = ({ ok: true } & T) | AckError;
 
 interface ServerToClientEvents {
   'presence:update': (payload: { sessionId: string; participants: Participant[] }) => void;
-  // Relayed from the orchestrator via Redis; see ./execution.ts. Both go to the session
-  // room, so only vetted participants receive them.
+  // Relayed from the orchestrator via Redis; see ./execution.ts.
   'submission:status': (payload: {
     submissionId: string;
     sessionId: string;
@@ -49,8 +48,7 @@ export type AppIoServer = Server<ClientToServerEvents, ServerToClientEvents, obj
 
 const JoinSchema = z.object({ sessionId: z.uuid('Not a valid session id') });
 
-/** Mirrors the HTTP error envelope so a client sees the same `code` for the same
- *  failure whether it arrived over REST or over a socket. */
+/** Mirrors the HTTP error envelope so a client sees the same `code` for the same failure whether. */
 function toAckError(err: unknown): AckError {
   if (err instanceof AppError) {
     return { ok: false, error: { code: err.code, message: err.message } };
@@ -65,27 +63,19 @@ function toAckError(err: unknown): AckError {
   return { ok: false, error: { code: 'INTERNAL', message: 'Internal server error' } };
 }
 
-/**
- * Socket.io carries the *application's* realtime events — presence now, and from
- * Phase E submission status and streamed execution output. It deliberately does not
- * carry CRDT document updates; those get their own binary transport on `/yjs`.
- */
+/** Socket.io carries the *application's* realtime events. */
 export function attachSocketIo(httpServer: HttpServer): AppIoServer {
   const io: AppIoServer = new Server(httpServer, {
     path: SOCKET_IO_PATH,
     cors: { origin: config.corsOrigins, credentials: true },
-    // The `/yjs` upgrade handler owns every non-Socket.io upgrade. Left at its default,
-    // engine.io would try to tear down sockets it does not recognise on a 1s timer,
-    // which turns transport routing into a race against our own auth lookup.
+    // The `/yjs` upgrade handler owns every non-Socket.io upgrade.
     destroyUpgrade: false,
   });
 
-  // Rooms, broadcasts, and `fetchSockets()` now span every gateway instance. This one
-  // line is what turns presence from a per-process fiction into a cluster-wide fact.
+  // Rooms, broadcasts, and `fetchSockets()` now span every gateway instance.
   io.adapter(createAdapter(adapterPub, adapterSub));
 
-  // Authenticate during the handshake: an unauthenticated socket never reaches
-  // `connection`, so no handler downstream has to re-check identity.
+  // Authenticate during the handshake: an unauthenticated socket never reaches `connection`.
   io.use((socket, next) => {
     authenticateToken(socket.handshake.auth?.token)
       .then((user) => {
@@ -143,7 +133,6 @@ async function leaveCurrentRoom(io: AppIoServer, socket: AppSocket): Promise<voi
   socket.data.sessionId = undefined;
   await socket.leave(roomKey(sessionId));
 
-  // Recomputed from the adapter after the socket has left, so the departing tab is
-  // already excluded from the list the remaining participants receive.
+  // Recomputed from the adapter after the socket has left.
   await broadcastPresence(io, sessionId);
 }

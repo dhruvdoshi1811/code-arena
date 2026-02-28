@@ -1,5 +1,4 @@
-// Package executor runs one submission inside a Kubernetes Job and records what
-// happened.
+// Package executor runs one submission inside a Kubernetes Job and records what happened.
 package executor
 
 import (
@@ -66,15 +65,12 @@ func (e *Executor) Execute(ctx context.Context, sub event.SubmissionEvent) error
 		return err
 	}
 
-	// The Job is created first so the ConfigMap can name it as its owner; Kubernetes
-	// then garbage-collects the ConfigMap when the Job is reaped, leaving no cleanup
-	// path of ours to leak.
+	// The Job is created first so the ConfigMap can name it as its owner.
 	job := k8s.BuildJob(e.namespace, sub, runtime, e.limits)
 	created, err := e.client.BatchV1().Jobs(e.namespace).Create(ctx, job, metav1.CreateOptions{})
 	if err != nil {
 		if apierrors.IsAlreadyExists(err) {
-			// A redelivered Kafka record. The deterministic Job name turned a duplicate
-			// execution into a no-op.
+			// A redelivered Kafka record.
 			log.Info("job already exists, skipping duplicate delivery", "job", jobName)
 			return nil
 		}
@@ -103,14 +99,11 @@ func (e *Executor) Execute(ctx context.Context, sub event.SubmissionEvent) error
 
 	log.Info("execution job created", "job", jobName, "namespace", e.namespace)
 
-	// The batcher is the consumer that the OnLine hook was added for in Phase D. It is
-	// closed before the outcome is published so its final flush lands ahead of the
-	// terminal status — a client must never see COMPLETED and then more output.
+	// The batcher is the consumer that the OnLine hook was added for in Phase D.
 	batcher := e.stream.NewBatcher(ctx, sub.SessionID, sub.SubmissionID)
 	defer batcher.Close()
 
-	// Start following logs before waiting for the outcome. This ordering is the whole
-	// reason a timed-out submission still has output: the deadline deletes the pod.
+	// Start following logs before waiting for the outcome.
 	output := &k8s.OutputBuffer{
 		OnLine: func(line string) { batcher.Add(ctx, line) },
 	}
@@ -129,16 +122,14 @@ func (e *Executor) Execute(ctx context.Context, sub event.SubmissionEvent) error
 		return e.finish(ctx, sub, store.Result{Status: store.StatusFailed, Output: err.Error()})
 	}
 
-	// Give the log follower a moment to drain what the pod emitted before it died,
-	// rather than racing the terminal condition.
+	// Give the log follower a moment to drain what the pod emitted before it died.
 	drain, cancel := context.WithTimeout(ctx, 3*time.Second)
 	go func() { defer cancel(); waitForLogs() }()
 	<-drain.Done()
 
 	log.Info("execution finished", "status", status, "outputBytes", len(output.String()))
 
-	// Flush any buffered lines before announcing the terminal status, so the ordering
-	// a client observes matches the ordering that actually happened.
+	// Flush any buffered lines before announcing the terminal status.
 	batcher.Close()
 
 	return e.finish(ctx, sub, store.Result{
@@ -149,10 +140,6 @@ func (e *Executor) Execute(ctx context.Context, sub event.SubmissionEvent) error
 }
 
 // awaitOutcome watches the Job until it reaches a terminal condition.
-//
-// Watching rather than polling: the status change arrives as an event the moment the
-// Job controller writes it, which is both promptly correct and the mechanism Phase E
-// reuses to push live status to the browser.
 func (e *Executor) awaitOutcome(ctx context.Context, jobName string) (store.Status, *int32, error) {
 	watcher, err := e.client.BatchV1().Jobs(e.namespace).Watch(ctx, metav1.ListOptions{
 		FieldSelector: "metadata.name=" + jobName,
@@ -189,10 +176,6 @@ func (e *Executor) awaitOutcome(ctx context.Context, jobName string) (store.Stat
 }
 
 // classify maps a Job's conditions onto a submission status.
-//
-// `DeadlineExceeded` is the reason that distinguishes "ran too long and was killed by
-// the platform" from "the program itself failed", and it is the entire point of the
-// phase — it must not be collapsed into a generic failure.
 func classify(job *batchv1.Job) (store.Status, bool) {
 	for _, condition := range job.Status.Conditions {
 		if condition.Status != corev1.ConditionTrue {
@@ -211,8 +194,7 @@ func classify(job *batchv1.Job) (store.Status, bool) {
 	return store.StatusQueued, false
 }
 
-// exitCode reads the container's exit status, best effort — the pod is often already
-// gone by the time a Job is terminal, which is expected rather than an error.
+// exitCode reads the container's exit status, best effort.
 func (e *Executor) exitCode(ctx context.Context, jobName string) *int32 {
 	pods, err := e.client.CoreV1().Pods(e.namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: "job-name=" + jobName,
@@ -239,14 +221,11 @@ func (e *Executor) deleteJob(ctx context.Context, name string) error {
 }
 
 func (e *Executor) finish(ctx context.Context, sub event.SubmissionEvent, result store.Result) error {
-	// Persist the outcome even if the surrounding context was cancelled, so a shutdown
-	// mid-execution does not strand a submission at RUNNING forever.
+	// Persist the outcome even if the surrounding context was cancelled.
 	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
 
-	// Database first, stream second. The row is the record; the event is a notification
-	// that the record changed, so a client told COMPLETED can always read back a
-	// COMPLETED row rather than racing ahead of it.
+	// Database first, stream second.
 	err := e.store.MarkFinished(persistCtx, sub.SubmissionID, result)
 
 	e.stream.PublishStatus(

@@ -8,8 +8,7 @@ import { signAccessToken } from '../auth/jwt.js';
 import { hashPassword, verifyPassword } from '../auth/password.js';
 import { currentUser, requireAuth } from '../auth/middleware.js';
 
-// Normalise first, then validate: `z.email()` checks the raw input, so trimming and
-// lowercasing have to happen upstream of it rather than chained after.
+// Normalise first, then validate: `z.email()` checks the raw input.
 const email = z.string().trim().toLowerCase().pipe(z.email().max(254));
 const password = z.string().min(8, 'Password must be at least 8 characters').max(200);
 
@@ -21,9 +20,7 @@ const RegisterSchema = z.object({
 
 const LoginSchema = z.object({ email, password });
 
-/** A throwaway hash, computed once at boot, used to keep the "no such account" branch
- *  as expensive as the "wrong password" branch. Otherwise login response time is an
- *  oracle for which email addresses are registered. */
+/** A throwaway hash, computed once at boot. */
 const dummyHash = hashPassword(randomUUID());
 
 export const authRoutes = Router();

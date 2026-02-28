@@ -5,8 +5,7 @@ import { LoginPage } from './components/LoginPage';
 import { LobbyPage } from './components/LobbyPage';
 import { SessionPage } from './components/SessionPage';
 
-/** Hash routing rather than a router dependency: the whole app is two screens, and a
- *  shareable `#/s/<id>` URL is exactly what the two-tab demo needs. */
+/** Hash routing rather than a router dependency: the whole app is two screens. */
 function readSessionIdFromHash(): string | null {
   const match = /^#\/s\/([0-9a-fA-F-]{36})$/.exec(window.location.hash);
   return match?.[1] ?? null;

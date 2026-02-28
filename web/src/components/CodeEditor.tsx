@@ -10,11 +10,7 @@ interface RemoteUser {
   color: string;
 }
 
-/**
- * y-monaco tags remote selections with per-client CSS classes but does not style them,
- * so the colours have to be injected as rules keyed by awareness client id. Without
- * this the collaboration works and is completely invisible.
- */
+/** y-monaco tags remote selections with per-client CSS classes but does not style them. */
 function useRemoteCursorStyles(collab: Collab): void {
   const [remotes, setRemotes] = useState<RemoteUser[]>([]);
 
@@ -80,9 +76,7 @@ export function CodeEditor({ collab, language }: { collab: Collab; language: Lan
     if (!host) return;
 
     const editor = monaco.editor.create(host, {
-      // Empty on purpose — MonacoBinding populates the model from the Y.Text. Seeding
-      // it with placeholder code here would insert that text into the shared document
-      // once per participant who opened the tab.
+      // Empty on purpose — MonacoBinding populates the model from the Y.Text.
       value: '',
       language,
       theme: 'vs-dark',

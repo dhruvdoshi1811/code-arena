@@ -1,17 +1,9 @@
 # Local Kubernetes for CodeArena's execution sandbox.
-#
-# Create with:  kind create cluster --config infra/kind/cluster.yaml
-# Destroy with: kind delete cluster --name codearena
-#
-# One node is enough: the thing being demonstrated is that the kubelet enforces limits
-# and deadlines on a Job, which a single node does exactly as well as twenty — and this
-# machine is also running Postgres, Redis, and Redpanda.
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 name: codearena
 
 nodes:
   - role: control-plane
-    # Pinned by digest, not just tag. A tag can be repointed; a digest cannot, so this
-    # is the difference between "some 1.36" and the exact image this was verified on.
+    # Pinned by digest, not just tag.
     image: kindest/node:v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5

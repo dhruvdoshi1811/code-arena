@@ -20,8 +20,7 @@ export function OutputPanel({ run }: { run: ActiveRun | null }) {
   const scrollRef = useRef<HTMLPreElement>(null);
   const pinnedToBottom = useRef(true);
 
-  // Follow the tail while the user is at the bottom, but stop fighting them the moment
-  // they scroll up to read something — output keeps arriving during a run.
+  // Follow the tail while the user is at the bottom.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || !pinnedToBottom.current) return;
@@ -70,11 +69,7 @@ export function OutputPanel({ run }: { run: ActiveRun | null }) {
   );
 }
 
-/** Reconcile a finished run against the persisted submission.
- *
- *  A tab that joined mid-execution only saw output from the moment it connected; the
- *  completed row carries the whole thing, so the live view is replaced by the record
- *  once there is a record to trust. */
+/** Reconcile a finished run against the persisted submission. */
 export function reconcile(run: ActiveRun, submission: Submission): ActiveRun {
   if (submission.id !== run.submissionId || submission.output === null) return run;
   return {

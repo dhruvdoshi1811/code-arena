@@ -8,9 +8,7 @@ import (
 	"strings"
 )
 
-// Config is the fully validated environment. Mirrors the gateway's fail-fast rule:
-// a process that starts with a missing broker list and only discovers it on the first
-// message is strictly worse than one that never starts.
+// Config is the fully validated environment.
 type Config struct {
 	Brokers          []string
 	SubmissionsTopic string
@@ -28,8 +26,7 @@ type Config struct {
 	ExecutionMemory          string
 	ExecutionDeadlineSeconds int64
 	ExecutionTTLSeconds      int32
-	// How many submissions may execute at once. Bounds this process; the namespace
-	// ResourceQuota bounds the cluster.
+	// How many submissions may execute at once.
 	MaxConcurrent int
 }
 
@@ -65,8 +62,7 @@ func Load() (Config, error) {
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("DATABASE_URL must not be empty")
 	}
-	// A zero or negative deadline would mean "no timeout", which is the one thing this
-	// service must never allow for untrusted code.
+	// A zero or negative deadline would mean "no timeout".
 	if cfg.ExecutionDeadlineSeconds <= 0 {
 		return Config{}, fmt.Errorf("EXECUTION_DEADLINE_SECONDS must be positive, got %d", cfg.ExecutionDeadlineSeconds)
 	}

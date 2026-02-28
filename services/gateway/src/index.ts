@@ -7,8 +7,7 @@ import { closeRedis, connectRedis, instanceId } from './realtime/redis.js';
 import { connectKafka, disconnectKafka } from './kafka/producer.js';
 
 async function main(): Promise<void> {
-  // Fail loudly at boot rather than on the first request. Redis must be reachable
-  // before the gateway is built, because the Socket.io adapter subscribes on creation.
+  // Fail loudly at boot rather than on the first request.
   await pingDatabase();
   await connectRedis();
   await connectKafka();

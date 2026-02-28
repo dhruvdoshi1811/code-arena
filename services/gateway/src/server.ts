@@ -14,23 +14,14 @@ export interface Gateway {
   close(): Promise<void>;
 }
 
-/**
- * Composition root.
- *
- * One HTTP server, two WebSocket transports sharing its `upgrade` event: Socket.io
- * claims `/socket.io/`, the Yjs handler claims `/yjs/*` and explicitly rejects
- * everything else. Order matters only in that Socket.io must be attached first so its
- * listener is registered before ours runs the fallback.
- */
+/** Composition root. */
 export function createGateway(): Gateway {
   const app = createApp();
   const httpServer = http.createServer(app);
   const io = attachSocketIo(httpServer);
   const yjs = attachYjsWebSocket(httpServer);
 
-  // Subscribes this instance to execution events from the orchestrator. Fire-and-forget
-  // because a gateway that cannot stream output should still serve editing and
-  // submission — the results remain readable from Postgres either way.
+  // Subscribes this instance to execution events from the orchestrator.
   void attachExecutionRelay(io).catch((err: unknown) => {
     console.error('[gateway] execution relay unavailable', err);
   });
@@ -48,8 +39,7 @@ export function createGateway(): Gateway {
           resolve(typeof address === 'object' && address ? address.port : port);
         });
       }),
-    // Tears down the network surface only. The connection pool outlives any single
-    // gateway instance — it belongs to the process, and `index.ts` closes it.
+    // Tears down the network surface only.
     close: async () => {
       await yjs.close();
       httpServer.closeAllConnections();

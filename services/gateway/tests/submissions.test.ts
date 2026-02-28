@@ -198,8 +198,7 @@ describe('GET /api/sessions/:id/submissions', () => {
 });
 
 describe('topic layout', () => {
-  // Auto-created topics get one partition, which would serialise every session's
-  // submissions behind every other session's.
+  // Auto-created topics get one partition.
   it('has more than one partition', async () => {
     expect(await partitionCountForTopic()).toBeGreaterThan(1);
   }, 30_000);

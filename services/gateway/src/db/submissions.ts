@@ -31,15 +31,7 @@ function mapSubmission(row: SubmissionRow): Submission {
   };
 }
 
-/**
- * Records the submission as QUEUED before anything is published.
- *
- * Order matters: the row is the durable record, and publishing first would allow a
- * consumer to receive an id that does not exist yet. The reverse ordering — row, then
- * publish — can instead strand a QUEUED row if the produce fails, which the caller
- * surfaces as an error and which Phase D's reconciliation can sweep up. Given a choice
- * between a dangling row and a dangling message, the row is the recoverable one.
- */
+/** Records the submission as QUEUED before anything is published. */
 export async function createSubmission(params: {
   sessionId: string;
   userId: string;

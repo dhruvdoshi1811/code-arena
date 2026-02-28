@@ -27,19 +27,13 @@ export interface DocClient {
   close(): void;
 }
 
-/**
- * Open the session's CRDT document the way a browser tab would.
- *
- * Submission tests need this: the gateway reads the code it publishes from its own
- * Y.Doc, so a session with no connected document has nothing to submit.
- */
+/** Open the session's CRDT document the way a browser tab would. */
 export function connectDocClient(port: number, sessionId: string, token: string): DocClient {
   const doc = new Y.Doc();
   const provider = new WebsocketProvider(`ws://localhost:${port}/yjs`, sessionId, doc, {
     params: { token },
     WebSocketPolyfill: WebSocket as unknown as typeof globalThis.WebSocket,
-    // Without this, providers in one process sync over a BroadcastChannel and the
-    // server is bypassed entirely.
+    // Forces sync through the server instead of peer-to-peer within this process.
     disableBc: true,
   });
 
@@ -48,8 +42,7 @@ export function connectDocClient(port: number, sessionId: string, token: string)
     provider,
     text: doc.getText(CODE_TEXT_KEY),
     close() {
-      // `WebsocketProvider.destroy()` leaves the Awareness timer running, which keeps
-      // the process alive after the suite finishes.
+      // `WebsocketProvider.destroy()` leaves the Awareness timer running.
       provider.awareness.destroy();
       provider.destroy();
       doc.destroy();
@@ -101,8 +94,7 @@ export function nextEvent<T = unknown>(
   });
 }
 
-/** Poll until `predicate` holds. CRDT convergence is eventual by definition, so the
- *  assertion is "settles on the right answer", not "is right on the next tick". */
+/** Poll until `predicate` holds. */
 export async function waitFor(predicate: () => boolean, timeoutMs = 10_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (!predicate()) {
@@ -125,8 +117,7 @@ export function connectYjs(url: string): Promise<YjsConnectResult> {
       ws.close();
       resolve({ ok: true });
     });
-    // Listening for this suppresses the generic 'error' for handshake rejections,
-    // which is how we recover the HTTP status the server refused with.
+    // Listening for this suppresses the generic 'error' for handshake rejections.
     ws.on('unexpected-response', (_req, res) => {
       ws.terminate();
       resolve({ ok: false, status: res.statusCode });

@@ -1,8 +1,6 @@
 import { z } from 'zod';
 
-/** Env is validated once, at boot, and the process refuses to start if it is wrong.
- *  A gateway that comes up with a missing JWT_SECRET and only fails on the first
- *  login is strictly worse than one that never comes up at all. */
+/** Env is validated once, at boot, and the process refuses to start if it is wrong. */
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(4000),

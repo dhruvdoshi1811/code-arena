@@ -58,8 +58,7 @@ export function SessionPage({
     };
   }, [sessionId, token]);
 
-  // One CRDT document per session, torn down on unmount so the gateway can drop the
-  // room and retract this tab's cursor.
+  // One CRDT document per session.
   const collab = useMemo<Collab | null>(
     () => (session ? createCollab(sessionId, token, user) : null),
     [session, sessionId, token, user],
@@ -75,8 +74,7 @@ export function SessionPage({
     return () => collab.provider.off('status', onStatus);
   }, [collab]);
 
-  // The app-events channel, separate from the document transport: presence now,
-  // submission status and streamed output from Phase E.
+  // The app-events channel, separate from the document transport: presence now.
   useEffect(() => {
     if (!session) return;
 
@@ -92,8 +90,7 @@ export function SessionPage({
       setParticipants(payload.participants);
     });
 
-    // Both participants see every transition, including runs the other one started —
-    // the QUEUED event is published by the gateway on submit for exactly that reason.
+    // Both participants see every transition, including runs the other one started.
     socket.on(
       'submission:status',
       (payload: { submissionId: string; status: SubmissionStatus; exitCode: number | null }) => {
@@ -110,8 +107,7 @@ export function SessionPage({
           ),
         );
 
-        // Terminal: fetch the persisted row so a tab that joined mid-run ends up with
-        // the complete output rather than only the tail it happened to witness.
+        // Terminal: fetch the persisted row so a tab that joined mid-run ends up with the complete output.
         if (['COMPLETED', 'FAILED', 'TIMEOUT'].includes(payload.status)) {
           api
             .listSubmissions(token, sessionId)
@@ -141,8 +137,7 @@ export function SessionPage({
     };
   }, [session, sessionId, token]);
 
-  // Loaded once on entry. There is no polling and no live transition: a submission is
-  // QUEUED and stays QUEUED until Phase E pushes status and output over the socket.
+  // Loaded once on entry.
   useEffect(() => {
     if (!session) return;
     let cancelled = false;

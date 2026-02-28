@@ -12,12 +12,10 @@ import type { WebSocket } from 'ws';
 import { config } from '../config.js';
 import { instanceId, publishBinary, subscribeBinary, unsubscribeBinary } from './redis.js';
 
-/** The shared text field inside every session document. The frontend binds Monaco to
- *  the same key — a mismatch here is a silent "everyone edits their own document". */
+/** The shared text field inside every session document. */
 export const CODE_TEXT_KEY = 'code';
 
-/** y-websocket wire protocol message types. The client provider speaks these; the
- *  numbers are the protocol, not an internal choice we are free to change. */
+/** y-websocket wire protocol message types. */
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
 
@@ -25,19 +23,12 @@ const MESSAGE_AWARENESS = 1;
 const BRIDGE_DOC = 0;
 const BRIDGE_AWARENESS = 1;
 
-/**
- * Marks changes that arrived from another gateway instance.
- *
- * Both update handlers below broadcast to local sockets unconditionally, but publish
- * to Redis only when the origin is *not* this sentinel. Without it two instances would
- * bounce a single keystroke between them forever.
- */
+/** Marks changes that arrived from another gateway instance. */
 const REMOTE_ORIGIN = Symbol('codearena.remote');
 
 const channelFor = (sessionId: string) => `codearena:yjs:${sessionId}`;
 
-/** A failed bridge publish costs the other instances one update; it must never become
- *  an unhandled rejection that ends the process. */
+/** A failed bridge publish costs the other instances one update. */
 function reportBridge(err: unknown): void {
   if (!config.isTest) console.error('[ydoc] bridge publish failed', err);
 }
@@ -45,8 +36,7 @@ function reportBridge(err: unknown): void {
 interface DocRoom {
   doc: Y.Doc;
   awareness: Awareness;
-  /** Which awareness client ids each socket owns, so a disconnect can retract exactly
-   *  that socket's cursor and nobody else's. */
+  /** Which awareness client ids each socket owns. */
   socketClients: Map<WebSocket, Set<number>>;
   /** Resolves once this room is subscribed to its Redis channel. */
   ready: Promise<void>;
@@ -73,13 +63,7 @@ function envelope(kind: number, payload: Uint8Array): Uint8Array {
   return encoding.toUint8Array(encoder);
 }
 
-/**
- * The server keeps its own Y.Doc per session rather than blindly relaying bytes
- * between peers. Three things depend on it: a late joiner can be caught up from one
- * authoritative state instead of begging a peer, updates can be re-encoded for the
- * Redis bridge, and from Phase D the code that gets executed is read from here rather
- * than trusted from whichever client clicked Run.
- */
+/** The server keeps its own Y.Doc per session rather than blindly relaying bytes between peers. */
 function getOrCreateRoom(sessionId: string): DocRoom {
   const existing = rooms.get(sessionId);
   if (existing) return existing;
@@ -108,8 +92,7 @@ function getOrCreateRoom(sessionId: string): DocRoom {
       { added, updated, removed }: { added: number[]; updated: number[]; removed: number[] },
       origin: unknown,
     ) => {
-      // Attribute client ids to the socket that announced them, so `leaveDocRoom` can
-      // retract them later.
+      // Attribute client ids to the socket that announced them, so `leaveDocRoom` can retract them later.
       const owner = room.socketClients.get(origin as WebSocket);
       if (owner) {
         for (const id of added) owner.add(id);
@@ -117,9 +100,7 @@ function getOrCreateRoom(sessionId: string): DocRoom {
       }
 
       const changed = [...added, ...updated, ...removed];
-      // Removals are encoded here too — `encodeAwarenessUpdate` writes a null state for
-      // a client whose entry is gone. Skipping them would strand ghost cursors on every
-      // *other* instance, which never sees the disconnect that caused the removal.
+      // Removals are encoded here too.
       const update = encodeAwarenessUpdate(awareness, changed);
 
       const encoder = encoding.createEncoder();
@@ -178,12 +159,7 @@ export async function joinDocRoom(sessionId: string, socket: WebSocket): Promise
   }
 }
 
-/**
- * Dispatch one client frame.
- *
- * `readSyncMessage` writes its reply into `encoder`; a length of 1 means it wrote only
- * the leading message type and there is nothing to say back.
- */
+/** Dispatch one client frame. */
 export function handleDocMessage(sessionId: string, socket: WebSocket, data: Uint8Array): void {
   const room = rooms.get(sessionId);
   if (!room) return;
@@ -219,8 +195,7 @@ export async function leaveDocRoom(sessionId: string, socket: WebSocket): Promis
   room.socketClients.delete(socket);
 
   if (controlled && controlled.size > 0) {
-    // Fires the awareness handler with a non-remote origin, so the retraction both
-    // broadcasts locally and publishes to the other instances.
+    // Fires the awareness handler with a non-remote origin.
     removeAwarenessStates(room.awareness, [...controlled], null);
   }
 
@@ -232,8 +207,7 @@ export async function leaveDocRoom(sessionId: string, socket: WebSocket): Promis
   }
 }
 
-/** The document as text. Phase D reads submissions from here rather than from the
- *  client, so what executes is exactly what the participants were looking at. */
+/** The document as text. */
 export function readDocumentText(sessionId: string): string | null {
   return rooms.get(sessionId)?.doc.getText(CODE_TEXT_KEY).toString() ?? null;
 }

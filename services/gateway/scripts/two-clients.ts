@@ -1,15 +1,4 @@
-/**
- * Phase A proof.
- *
- * Drives the running gateway exactly as two browsers will: two accounts, one session,
- * both participants connected over Socket.io and over the Yjs transport, and presence
- * updating live as they come and go. Also checks the two negative cases that make the
- * room a real boundary rather than a label — an unauthenticated socket and an
- * outsider who knows the session id.
- *
- * Usage:  npm run dev      (in one terminal)
- *         npm run proof    (in another)
- */
+/** Phase A proof. */
 import { randomUUID } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';

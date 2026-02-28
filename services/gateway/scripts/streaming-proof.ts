@@ -1,14 +1,4 @@
-/**
- * Phase E proof.
- *
- * The host presses Run; the *guest* watches. Every event the guest receives is printed
- * with the time it arrived, so the claim being demonstrated is visible in the timings
- * rather than asserted: lines show up spread across the run, not in one lump at the end.
- *
- * Usage:  npm run dev                        (terminal 1)
- *         go run ./cmd/orchestrator          (terminal 2, from services/orchestrator)
- *         npm run proof:stream               (terminal 3)
- */
+/** Phase E proof. */
 import { randomUUID } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
 import * as Y from 'yjs';
@@ -134,8 +124,7 @@ async function runScenario(
   const checks: [string, boolean][] = [
     [`guest saw the run reach ${expectStatus}`, terminal === expectStatus],
     ['guest received output it did not submit', outputs.length > 0],
-    // The heart of it: if output only appeared at the end, everything would land within
-    // a few milliseconds of the terminal status.
+    // The heart of it: if output only appeared at the end.
     ['output arrived progressively, not in one lump', spreadMs > 500],
   ];
 

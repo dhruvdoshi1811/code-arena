@@ -1,16 +1,4 @@
-/**
- * Phase B proof.
- *
- * Two participants edit one document with genuinely simultaneous writes — no awaiting
- * between them, so neither has heard about the other when it types — and the result
- * must converge with every character intact. Optionally runs the two participants
- * against two different gateway instances, which forces every change through Redis.
- *
- * Usage:  npm run dev                                   (terminal 1)
- *         PORT=4001 npm run dev                         (terminal 2, optional)
- *         npm run proof:collab                          (single instance)
- *         GATEWAY_B=http://localhost:4001 npm run proof:collab   (two instances)
- */
+/** Phase B proof. */
 import { randomUUID } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
 import * as Y from 'yjs';
@@ -56,16 +44,13 @@ function connect(base: string, sessionId: string, token: string) {
   const provider = new WebsocketProvider(`${base.replace(/^http/, 'ws')}/yjs`, sessionId, doc, {
     params: { token },
     WebSocketPolyfill: WebSocket as unknown as typeof globalThis.WebSocket,
-    // Otherwise these two providers would find each other over a BroadcastChannel
-    // inside this one process and "converge" without the gateway doing anything.
+    // Otherwise these two providers would find each other over a BroadcastChannel inside this one.
     disableBc: true,
   });
   return { doc, provider, text: doc.getText(CODE_TEXT_KEY) };
 }
 
-/** `WebsocketProvider.destroy()` does not destroy the Awareness it created, and
- *  Awareness holds a recurring timer for pruning outdated states — enough on its own to
- *  keep a Node process alive forever after the work is done. */
+/** `WebsocketProvider.destroy()` does not destroy the Awareness it created. */
 function closeClient(client: { doc: Y.Doc; provider: WebsocketProvider }): void {
   client.provider.awareness.destroy();
   client.provider.destroy();
@@ -135,9 +120,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // Departure retracts the cursor rather than leaving a ghost behind. Note this relies
-  // on the *server* noticing the socket close and publishing the removal — Ada's tab
-  // does not get to announce it politely.
+  // Departure retracts the cursor rather than leaving a ghost behind.
   closeClient(a);
   await waitFor(
     () =>

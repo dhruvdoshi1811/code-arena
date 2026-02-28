@@ -11,7 +11,6 @@ export const pool = new Pool({
 });
 
 // An idle client erroring out (server restart, network blip) is emitted on the pool.
-// Without a listener this is an unhandled 'error' event and takes the process down.
 pool.on('error', (err) => {
   console.error('[db] idle client error', err);
 });

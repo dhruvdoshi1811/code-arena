@@ -13,8 +13,7 @@ export const sessionRoutes = Router();
 
 sessionRoutes.use(requireAuth);
 
-// Submissions are scoped to a session and re-derive the participant checks themselves,
-// so they mount as a child router rather than reaching across from a sibling.
+// Submissions are scoped to a session and re-derive the participant checks themselves.
 sessionRoutes.use('/:id/submissions', submissionRoutes);
 
 sessionRoutes.post('/', async (req, res) => {
@@ -29,8 +28,7 @@ sessionRoutes.get('/:id', async (req, res) => {
 
   const session = await findSessionById(id);
   if (!session) throw notFound('SESSION_NOT_FOUND', 'No such session');
-  // Knowing the id is enough to *join*; it is not enough to *read*. Only the two
-  // seated participants can see a session's state.
+  // Knowing the id is enough to *join*; it is not enough to *read*.
   if (!isParticipant(session, user.id)) {
     throw forbidden('NOT_A_PARTICIPANT', 'You are not a participant in this session');
   }
@@ -48,8 +46,7 @@ sessionRoutes.post('/:id/join', async (req, res) => {
     return;
   }
 
-  // The claim did not apply. Read the current row to say why — this is diagnosis
-  // after the fact, never a precondition check before the write.
+  // The claim did not apply.
   const session = await findSessionById(id);
   if (!session) throw notFound('SESSION_NOT_FOUND', 'No such session');
   if (session.guestId === user.id) {

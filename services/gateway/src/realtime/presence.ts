@@ -9,19 +9,7 @@ export interface Participant {
 
 export const roomKey = (sessionId: string) => `session:${sessionId}`;
 
-/**
- * Who is currently in a session, derived from the Socket.io adapter rather than
- * tracked beside it.
- *
- * Phase A kept a process-local `Map` here, which was correct for exactly one gateway
- * instance and wrong for two — each would have broadcast a participant list missing
- * everyone connected to the other. With the Redis adapter attached, `fetchSockets()`
- * asks every instance and returns the union, so the adapter *is* the source of truth
- * and there is no second copy of the answer to drift out of sync with it.
- *
- * Connections are counted per user rather than deduplicated to a set of ids, so closing
- * one of a user's two tabs does not evict them from the room.
- */
+/** Who is currently in a session, derived from the Socket.io adapter rather than tracked beside it. */
 export async function listParticipants(
   io: AppIoServer,
   sessionId: string,

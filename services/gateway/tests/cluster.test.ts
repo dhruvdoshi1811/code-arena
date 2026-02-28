@@ -18,15 +18,7 @@ import {
   type RegisteredUser,
 } from './helpers.js';
 
-/**
- * The Redis proof.
- *
- * Gateway A runs in this process; gateway B is spawned as a real child process. That
- * separation is the whole point — two gateways constructed in one process would share
- * every module-level singleton (the instance id, the Redis clients, and the document
- * room registry itself), so they would "agree" without a single byte crossing Redis.
- * Only distinct processes can demonstrate that the bridge is what carries the change.
- */
+/** The Redis proof. */
 
 let gatewayA: Gateway;
 let portA: number;
@@ -46,8 +38,7 @@ function connectDoc(port: number, token: string): { doc: Y.Doc; text: Y.Text; pr
   const provider = new WebsocketProvider(`ws://localhost:${port}/yjs`, sessionId, doc, {
     params: { token },
     WebSocketPolyfill: WebSocket as unknown as typeof globalThis.WebSocket,
-    // Without this the two providers would gossip over a BroadcastChannel inside this
-    // process and converge with both gateways switched off.
+    // Forces sync through the gateways instead of peer-to-peer within this process.
     disableBc: true,
   });
   providers.push(provider);
@@ -104,9 +95,7 @@ beforeAll(async () => {
   portA = await gatewayA.listen(0);
 
   portB = await reservePort();
-  // `--import tsx` rather than the tsx shim, which is a .cmd on Windows and would need
-  // a shell. The child inherits the test environment, so it shares the same database,
-  // the same Redis, and critically the same JWT secret.
+  // `--import tsx` rather than the tsx shim, which is a .cmd on Windows and would need a shell.
   child = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
     env: { ...process.env, PORT: String(portB), NODE_ENV: 'development' },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -142,8 +131,7 @@ afterAll(async () => {
 }, 30_000);
 
 describe('two gateway instances over Redis', () => {
-  // Guards the premise of every test below: if the child ever failed to start, or
-  // somehow shared this process's state, the rest of this file would prove nothing.
+  // Guards the premise of every test below: if the child ever failed to start.
   it('really is a second process with its own instance id', () => {
     expect(child.pid).toBeGreaterThan(0);
     expect(child.exitCode).toBeNull();
@@ -184,8 +172,7 @@ describe('two gateway instances over Redis', () => {
     );
   }, 30_000);
 
-  // The failure this guards against: instance B never sees A's socket close, so without
-  // publishing awareness removals it would keep rendering a cursor for a departed tab.
+  // The failure this guards against: instance B never sees A's socket close.
   it('retracts a cursor across instances when its tab disconnects', async () => {
     const a = connectDoc(portA, host.token);
     const b = connectDoc(portB, guest.token);

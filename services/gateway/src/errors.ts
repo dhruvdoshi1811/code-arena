@@ -1,6 +1,4 @@
-/** One error type for the whole service. Routes throw it, one Express error handler
- *  turns it into the `{ error: { code, message } }` envelope, and the realtime layer
- *  reuses the same codes so clients see consistent failures over REST and WebSocket. */
+/** One error type for the whole service. */
 export class AppError extends Error {
   constructor(
     readonly status: number,

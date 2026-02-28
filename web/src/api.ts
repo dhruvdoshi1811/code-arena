@@ -1,7 +1,6 @@
 const BASE = (import.meta.env.VITE_GATEWAY_URL as string | undefined) ?? 'http://localhost:4000';
 
-/** Which gateway this tab talks to. Two tabs pointed at different instances is the
- *  Phase B demo — the Redis bridge is what makes them behave as one. */
+/** Which gateway this tab talks to. */
 export const gatewayHttpUrl = BASE;
 export const gatewayWsUrl = BASE.replace(/^http/, 'ws');
 
@@ -40,8 +39,7 @@ export interface Submission {
   finishedAt: string | null;
 }
 
-/** Mirrors the gateway's `{ error: { code, message } }` envelope, so the UI can branch
- *  on a stable code instead of matching on prose. */
+/** Mirrors the gateway's `{ error: { code, message } }` envelope. */
 export class ApiError extends Error {
   constructor(
     readonly code: string,
@@ -108,8 +106,7 @@ export const api = {
   getSession: (token: string, sessionId: string) =>
     request<{ session: Session }>(`/api/sessions/${sessionId}`, {}, token),
 
-  /** Returns 202: the submission is durably queued, not executed. Nothing here waits
-   *  for a result — status transitions and output arrive over the socket in Phase E. */
+  /** Returns 202: the submission is durably queued, not executed. */
   createSubmission: (token: string, sessionId: string) =>
     request<{ submission: Submission }>(
       `/api/sessions/${sessionId}/submissions`,

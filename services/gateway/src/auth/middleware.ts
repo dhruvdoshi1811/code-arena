@@ -13,12 +13,7 @@ declare global {
   }
 }
 
-/** Reads the bearer token, resolves it to a live user, and attaches it to the request.
- *
- *  The database lookup on every authenticated request is a deliberate cost: a stateless
- *  JWT is valid until it expires, so without it a deleted account would keep working for
- *  up to seven days. Re-resolving the subject is the cheapest revocation story that does
- *  not reintroduce server-side sessions. */
+/** Reads the bearer token, resolves it to a live user, and attaches it to the request. */
 export const requireAuth: RequestHandler = async (req, _res, next) => {
   const header = req.header('authorization');
   if (!header?.startsWith('Bearer ')) {

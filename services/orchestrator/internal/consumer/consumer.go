@@ -1,9 +1,4 @@
 // Package consumer drains the submissions topic.
-//
-// Phase C scope, deliberately: decode and log. This service does not touch Postgres and
-// does not know Kubernetes exists. Both arrive in Phase D, where there is real execution
-// whose state is worth recording — recording it earlier would mean writing status
-// transitions that describe nothing.
 package consumer
 
 import (
@@ -19,8 +14,7 @@ import (
 	"github.com/dhruvdoshi1811/code-arena/services/orchestrator/internal/event"
 )
 
-// Handler processes one decoded submission. Phase D swaps the logging implementation
-// for one that creates a Kubernetes Job.
+// Handler processes one decoded submission.
 type Handler func(context.Context, event.SubmissionEvent) error
 
 // Consumer wraps a franz-go consumer group client.
@@ -36,13 +30,9 @@ func New(cfg config.Config, log *slog.Logger) (*Consumer, error) {
 		kgo.SeedBrokers(cfg.Brokers...),
 		kgo.ConsumerGroup(cfg.ConsumerGroup),
 		kgo.ConsumeTopics(cfg.SubmissionsTopic),
-		// Start from the beginning of a partition the first time this group sees it, so
-		// a consumer started after a burst still drains what is already queued rather
-		// than silently skipping it.
+		// Start from the beginning of a partition the first time this group sees it.
 		kgo.ConsumeResetOffset(kgo.NewOffset().AtStart()),
-		// Offsets are committed explicitly, after a record is handled. Automatic
-		// interval commits would acknowledge records that were fetched but not yet
-		// processed, so a crash mid-batch would lose submissions outright.
+		// Offsets are committed explicitly, after a record is handled.
 		kgo.DisableAutoCommit(),
 	)
 	if err != nil {
@@ -65,8 +55,7 @@ func (c *Consumer) Run(ctx context.Context, handle Handler) error {
 			return nil
 		}
 
-		// Fetch errors are per-topic-partition and usually transient (a rebalance, a
-		// broker blip). Log and keep polling rather than tearing the process down.
+		// Fetch errors are per-topic-partition and usually transient (a rebalance, a broker blip).
 		fetches.EachError(func(topic string, partition int32, err error) {
 			if errors.Is(err, context.Canceled) {
 				return
@@ -88,9 +77,7 @@ func (c *Consumer) Run(ctx context.Context, handle Handler) error {
 func (c *Consumer) handleRecord(ctx context.Context, record *kgo.Record, handle Handler) {
 	var submission event.SubmissionEvent
 	if err := json.Unmarshal(record.Value, &submission); err != nil {
-		// A record that cannot be decoded will never decode. Retrying it forever would
-		// wedge the partition, so it is logged and stepped over; Phase D routes these
-		// to a dead-letter topic once there is a consequence worth preserving.
+		// A record that cannot be decoded will never decode.
 		c.log.Error("undecodable record, skipping",
 			"partition", record.Partition,
 			"offset", record.Offset,
@@ -107,8 +94,7 @@ func (c *Consumer) handleRecord(ctx context.Context, record *kgo.Record, handle 
 	}
 }
 
-// Close flushes and shuts down the client, releasing the group slot promptly instead of
-// leaving the group to time the member out.
+// Close flushes and shuts down the client.
 func (c *Consumer) Close() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

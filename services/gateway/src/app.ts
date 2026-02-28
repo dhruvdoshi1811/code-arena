@@ -6,10 +6,7 @@ import { authRoutes } from './http/authRoutes.js';
 import { sessionRoutes } from './http/sessionRoutes.js';
 import { errorHandler, notFoundHandler } from './http/errors.js';
 
-/** The HTTP surface, separated from `listen()` so tests can drive it in-process.
- *
- *  Express 5 forwards rejected promises from handlers to the error middleware, which
- *  is why routes below can `throw` an AppError from an async function with no wrapper. */
+/** The HTTP surface, separated from `listen()` so tests can drive it in-process. */
 export function createApp(): Express {
   const app = express();
 

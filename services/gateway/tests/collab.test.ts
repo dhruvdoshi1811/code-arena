@@ -27,10 +27,7 @@ function connectDoc(token: string, id = sessionId): Client {
   const provider = new WebsocketProvider(`ws://localhost:${port}/yjs`, id, doc, {
     params: { token },
     WebSocketPolyfill: WebSocket as unknown as typeof globalThis.WebSocket,
-    // Critical for these tests to mean anything. y-websocket also syncs peers in the
-    // same JS context over a BroadcastChannel; left enabled, two providers here would
-    // reach each other without the server being involved at all and the suite would
-    // pass against a gateway that does nothing.
+    // Critical for these tests to mean anything.
     disableBc: true,
   });
   providers.push(provider);
@@ -77,8 +74,7 @@ describe('collaborative editing', () => {
     const b = connectDoc(guest.token);
     await Promise.all([whenSynced(a), whenSynced(b)]);
 
-    // No await between these two — the inserts are issued against both documents
-    // before either has heard about the other. Sequential edits would prove nothing.
+    // No await between these two.
     a.text.insert(0, 'A'.repeat(40));
     b.text.insert(0, 'B'.repeat(40));
 

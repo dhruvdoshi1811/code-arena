@@ -1,8 +1,4 @@
 // Package store persists execution results.
-//
-// The Go service writes `submissions` and owns `execution_jobs` outright — the reason
-// the schema was kept in language-neutral SQL migrations from Phase A rather than
-// inside the Node gateway's type system.
 package store
 
 import (
@@ -43,10 +39,6 @@ func New(ctx context.Context, databaseURL string) (*Store, error) {
 func (s *Store) Close() { s.pool.Close() }
 
 // RecordJobCreated inserts the execution_jobs row.
-//
-// ON CONFLICT DO NOTHING rather than an error: Kafka is at-least-once, and the unique
-// constraint on submission_id is what makes a redelivered record harmless here, exactly
-// as the deterministic Job name does on the Kubernetes side.
 func (s *Store) RecordJobCreated(ctx context.Context, submissionID, jobName, namespace string) error {
 	_, err := s.pool.Exec(ctx,
 		`INSERT INTO execution_jobs (submission_id, k8s_job_name, k8s_namespace, status)
@@ -61,10 +53,6 @@ func (s *Store) RecordJobCreated(ctx context.Context, submissionID, jobName, nam
 }
 
 // MarkRunning moves both rows to RUNNING and stamps started_at.
-//
-// The submissions CHECK constraint requires started_at to be non-null exactly when
-// status is RUNNING, so these two must move together or Postgres rejects the write —
-// a cross-service invariant enforced by the database rather than by convention.
 func (s *Store) MarkRunning(ctx context.Context, submissionID string) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -101,12 +89,6 @@ type Result struct {
 }
 
 // MarkFinished writes the terminal state to both tables in one transaction.
-//
-// `started_at` is coalesced because a submission can reach a terminal state without
-// ever having been observed RUNNING — a pod that fails to schedule, or a Job whose
-// deadline fires before the watch reports the pod started. The CHECK constraint demands
-// a non-null started_at for any terminal status, so this must not depend on MarkRunning
-// having happened.
 func (s *Store) MarkFinished(ctx context.Context, submissionID string, result Result) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

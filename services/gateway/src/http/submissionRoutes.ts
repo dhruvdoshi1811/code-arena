@@ -16,25 +16,12 @@ export const submissionRoutes = Router({ mergeParams: true });
 
 submissionRoutes.use(requireAuth);
 
-/**
- * Run.
- *
- * The code is read from the gateway's own Y.Doc rather than accepted from the client,
- * so what gets executed is exactly what both participants were looking at. A modified
- * client cannot smuggle in different code, and there is no untrusted payload to size-
- * limit or sanitise.
- *
- * The trade-off is an affinity requirement: this request has to reach an instance that
- * holds the document. In practice the browser talks to one gateway origin, and the
- * WebSocket transports already need sticky sessions at the load balancer, so this adds
- * no new constraint — but it is a real one, and Phase F must not forget it.
- */
+/** Run. */
 submissionRoutes.post('/', async (req, res) => {
   const { id: sessionId } = IdParam.parse(req.params);
   const user = currentUser(req);
 
-  // Reuses the same participant + ACTIVE checks the realtime layer applies, so a
-  // session cannot be submitted to over REST that could not be joined over a socket.
+  // Reuses the same participant + ACTIVE checks the realtime layer applies.
   const session = await resolveJoinableSession(sessionId, user);
 
   const code = readDocumentText(sessionId);
@@ -48,8 +35,7 @@ submissionRoutes.post('/', async (req, res) => {
     throw badRequest('EMPTY_SUBMISSION', 'There is no code to run');
   }
 
-  // Row first, then publish. A produce failure leaves a QUEUED row that can be
-  // reconciled; publishing first could hand a consumer an id that does not exist.
+  // Row first, then publish.
   const submission = await createSubmission({
     sessionId: session.id,
     userId: user.id,
@@ -77,15 +63,12 @@ submissionRoutes.post('/', async (req, res) => {
     );
   }
 
-  // Tell the room a run has started. The submitter learns this from the response
-  // below; without this the *other* participant sees nothing until first output.
-  // Best-effort, exactly like every other execution event — the row is already durable.
+  // Tell the room a run has started.
   publishQueued(session.id, submission.id).catch((publishErr: unknown) => {
     if (!process.env.VITEST) console.error('[submissions] failed to announce queued', publishErr);
   });
 
-  // 202, not 200: the claim being made is "durably queued", which is true only after
-  // the broker acknowledged the record. It is emphatically not "this has run".
+  // 202, not 200: the claim being made is "durably queued".
   res.status(202).json({ submission });
 });
 

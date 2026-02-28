@@ -3,15 +3,7 @@ import type { PublicUser } from './api';
 const TOKEN_KEY = 'codearena.token';
 const USER_KEY = 'codearena.user';
 
-/**
- * Session storage for the access token.
- *
- * `localStorage` is readable by any script that runs on this origin, so an XSS bug
- * becomes token theft — an httpOnly cookie would not have that property. It is chosen
- * anyway because the token has to be handed to two WebSocket transports (Socket.io's
- * handshake auth and the `?token=` query on `/yjs`), and a cookie the JS cannot read
- * cannot be placed into either. Worth being able to name the trade-off out loud.
- */
+/** Session storage for the access token. */
 export const authStore = {
   read(): { token: string; user: PublicUser } | null {
     const token = localStorage.getItem(TOKEN_KEY);
@@ -46,8 +38,7 @@ const PALETTE = [
   '#fb7185',
 ];
 
-/** A stable colour per user, so the same person is the same colour in both tabs and
- *  across reloads. Derived from the id rather than assigned on arrival. */
+/** A stable colour per user, so the same person is the same colour in both tabs and across reloads. */
 export function colorForUser(userId: string): string {
   let hash = 0;
   for (let i = 0; i < userId.length; i += 1) {

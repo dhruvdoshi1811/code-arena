@@ -38,18 +38,7 @@ export async function findSessionById(id: string): Promise<Session | null> {
   return rows[0] ? mapSession(rows[0]) : null;
 }
 
-/**
- * Atomically claim the single guest seat.
- *
- * This is a conditional UPDATE rather than a SELECT-then-UPDATE on purpose: the guest
- * seat is a contended resource, and read-then-write leaves a window where two joiners
- * both observe `guest_id IS NULL` and the second silently overwrites the first. Every
- * precondition — seat free, session still ACTIVE, joiner is not the host — lives in the
- * WHERE clause, so Postgres' row lock decides the winner and the loser gets zero rows.
- *
- * Returns null when the claim did not apply; the caller inspects the current row to
- * report *why*.
- */
+/** Atomically claim the single guest seat. */
 export async function claimGuestSeat(sessionId: string, userId: string): Promise<Session | null> {
   const { rows } = await pool.query<SessionRow>(
     `UPDATE sessions

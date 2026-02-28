@@ -4,8 +4,7 @@ import { publishText, subscribePattern } from './redis.js';
 import { roomKey } from './presence.js';
 import type { AppIoServer } from './socket.js';
 
-/** Mirrors `Event` in the orchestrator's internal/stream/publisher.go. The JSON field
- *  names are the contract between the two services. */
+/** Mirrors `Event` in the orchestrator's internal/stream/publisher.go. */
 const ExecutionEventSchema = z.object({
   type: z.enum(['status', 'output']),
   submissionId: z.uuid(),
@@ -21,23 +20,7 @@ const CHANNEL_PATTERN = 'codearena:exec:*';
 
 export const executionChannelFor = (sessionId: string) => `codearena:exec:${sessionId}`;
 
-/**
- * Relay execution events from the orchestrator into the session's Socket.io room.
- *
- * The emit is deliberately `io.local`, and that is the whole subtlety of this file.
- *
- * Every gateway instance subscribes to this pattern, so every instance receives every
- * event. The Socket.io Redis adapter added in Phase B makes `io.to(room)` fan out to
- * *all* instances — so a plain `io.to(...)` here would have each instance broadcast the
- * same event cluster-wide, and a browser would receive one copy per running gateway.
- *
- * `io.local` restricts delivery to the sockets this instance actually holds. Each
- * instance serves its own clients, every client is served exactly once, and no
- * coordination protocol is needed to decide which instance is responsible.
- *
- * This is the inverse of the presence path, where one instance originates an event and
- * genuinely wants the adapter to fan it out to everyone.
- */
+/** Relay execution events from the orchestrator into the session's Socket.io room. */
 export function attachExecutionRelay(io: AppIoServer): Promise<void> {
   return subscribePattern(CHANNEL_PATTERN, (_channel, message) => {
     let parsed: ExecutionEvent;
@@ -70,13 +53,7 @@ export function attachExecutionRelay(io: AppIoServer): Promise<void> {
   });
 }
 
-/**
- * Announce a newly queued submission.
- *
- * Published rather than emitted directly so it travels the same path as every other
- * execution event — the submitting client already learns of it from the 202 response,
- * but the *other* participant would otherwise see nothing until first output.
- */
+/** Announce a newly queued submission. */
 export async function publishQueued(sessionId: string, submissionId: string): Promise<void> {
   await publishText(
     executionChannelFor(sessionId),

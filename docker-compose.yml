@@ -18,8 +18,7 @@ services:
       timeout: 5s
       retries: 10
 
-  # Carries presence and the cross-instance Yjs bridge since Phase B; execution
-  # status/output fan-out lands on it in Phase E.
+  # Carries presence and the cross-instance Yjs bridge since Phase B.
   redis:
     image: redis:7-alpine
     container_name: codearena-redis
@@ -31,9 +30,7 @@ services:
       timeout: 5s
       retries: 10
 
-  # Kafka API without Kafka's footprint: one process, no ZooKeeper, no JVM — which
-  # matters on a 16GB machine also running Postgres, Redis, and a Kubernetes cluster
-  # from Phase D onward. Wire-compatible, so the clients are real Kafka clients.
+  # Kafka API without Kafka's footprint: one process, no ZooKeeper, no JVM.
   redpanda:
     image: docker.redpanda.com/redpandadata/redpanda:v25.2.5
     container_name: codearena-redpanda
@@ -45,9 +42,7 @@ services:
       - --overprovisioned
       - --node-id=0
       - --check=false
-      # Two listeners: `internal` for containers on this network, `external` for
-      # processes on the host. They must advertise different addresses or host clients
-      # get handed a broker address only reachable from inside Docker.
+      # Two listeners: `internal` for containers on this network, `external` for processes on the host.
       - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
       - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:19092
       - --rpc-addr=0.0.0.0:33145
@@ -63,8 +58,7 @@ services:
       timeout: 5s
       retries: 20
 
-  # Creates the topic explicitly rather than relying on auto-creation, which would
-  # give it a single partition and silently serialise every session's submissions.
+  # Creates the topic explicitly rather than relying on auto-creation.
   redpanda-init:
     image: docker.redpanda.com/redpandadata/redpanda:v25.2.5
     container_name: codearena-redpanda-init
@@ -72,8 +66,7 @@ services:
       redpanda:
         condition: service_healthy
     entrypoint: ["/bin/sh", "-c"]
-    # Kept on one line deliberately: a folded YAML scalar turns the continuation into a
-    # second shell line, which silently drops --brokers and dials localhost instead.
+    # Kept on one line deliberately: a folded YAML scalar turns the continuation into a second shell.
     command: ["rpk topic create code-submissions code-submissions-test --partitions 3 --replicas 1 --brokers redpanda:9092 || true"]
     restart: "no"
 

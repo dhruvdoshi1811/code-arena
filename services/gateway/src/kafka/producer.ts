@@ -2,24 +2,14 @@ import confluent from '@confluentinc/kafka-javascript';
 import { config } from '../config.js';
 import type { SubmissionEvent } from '../domain.js';
 
-// The package is CommonJS and exposes two APIs side by side: the node-rdkafka-style
-// surface at the top level, and a KafkaJS-compatible one under `KafkaJS`. From ESM only
-// the default import is reliable, so the namespace is destructured here rather than
-// reached for with a named import that would resolve to undefined at runtime.
+// The package is CommonJS and exposes two APIs side by side: the node-rdkafka-style surface at.
 const { KafkaJS } = confluent;
 
 type Producer = ReturnType<InstanceType<typeof KafkaJS.Kafka>['producer']>;
 
 let producer: Producer | null = null;
 
-/**
- * Connect the producer once, at boot.
- *
- * `idempotent` is on, which pins acks to all and makes librdkafka deduplicate on
- * retry. Without it a network blip between "broker wrote the record" and "producer saw
- * the ack" produces a duplicate on retry — and a duplicated submission event means the
- * same code executed twice in Phase D, in two separate Kubernetes Jobs.
- */
+/** Connect the producer once, at boot. */
 export async function connectKafka(): Promise<void> {
   if (producer) return;
 
@@ -33,9 +23,7 @@ export async function connectKafka(): Promise<void> {
 
   const created = kafka.producer({
     kafkaJS: { idempotent: true },
-    // librdkafka-level knob: the total budget for delivering a record, retries
-    // included. Bounded so an unreachable broker surfaces as a failed request the
-    // caller can retry, rather than a POST that hangs until the client gives up.
+    // librdkafka-level knob: the total budget for delivering a record, retries included.
     'message.timeout.ms': 10_000,
   });
 
@@ -49,13 +37,7 @@ export async function disconnectKafka(): Promise<void> {
   if (current) await current.disconnect();
 }
 
-/**
- * Publish one submission and wait for the broker to acknowledge it.
- *
- * Keyed by `sessionId` so every submission for a session lands on the same partition
- * and is therefore consumed in the order it was made. Keying randomly would spread one
- * session's runs across partitions, where nothing orders them relative to each other.
- */
+/** Publish one submission and wait for the broker to acknowledge it. */
 export async function publishSubmission(event: SubmissionEvent): Promise<void> {
   if (!producer) {
     throw new Error('Kafka producer is not connected — call connectKafka() at boot');

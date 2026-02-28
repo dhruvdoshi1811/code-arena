@@ -1,8 +1,6 @@
 import { hash, verify, Algorithm } from '@node-rs/argon2';
 
-/** argon2id — memory-hard, and the current OWASP default for password storage.
- *  @node-rs/argon2 ships prebuilt binaries, so there is no native toolchain to
- *  install on any of the platforms this service is developed or built on. */
+/** argon2id — memory-hard, and the current OWASP default for password storage. */
 const OPTIONS = { algorithm: Algorithm.Argon2id } as const;
 
 export function hashPassword(plaintext: string): Promise<string> {

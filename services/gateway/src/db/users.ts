@@ -34,8 +34,7 @@ export async function createUser(params: {
     );
     return mapUser(rows[0]!);
   } catch (err) {
-    // Let the unique index be the arbiter rather than a check-then-insert, which
-    // would race two simultaneous registrations of the same address.
+    // Let the unique index be the arbiter rather than a check-then-insert.
     if (pgErrorCode(err) === PG_UNIQUE_VIOLATION) {
       throw conflict('EMAIL_TAKEN', 'An account with that email already exists');
     }

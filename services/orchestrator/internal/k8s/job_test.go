@@ -8,9 +8,7 @@ import (
 	"github.com/dhruvdoshi1811/code-arena/services/orchestrator/internal/event"
 )
 
-// These tests are the durable form of the security argument. Prose in a comment does
-// not fail a build when someone deletes a line; these do. Each one corresponds to a
-// specific way untrusted code escapes or outlives its sandbox.
+// These tests are the durable form of the security argument.
 
 func testSubmission() event.SubmissionEvent {
 	return event.SubmissionEvent{
@@ -36,8 +34,7 @@ func buildForTest(t *testing.T) (*corev1.PodSpec, *corev1.Container) {
 	return spec, &spec.Containers[0]
 }
 
-// Without this, an infinite loop is killed at its deadline and then retried six more
-// times, each burning another full deadline of CPU.
+// Without this, an infinite loop is killed at its deadline and then retried six more times.
 func TestJobDoesNotRetry(t *testing.T) {
 	runtime, _ := RuntimeFor(event.LanguagePython)
 	job := BuildJob("codearena-exec", testSubmission(), runtime, DefaultLimits())
@@ -63,10 +60,7 @@ func TestJobHasExecutionDeadline(t *testing.T) {
 	}
 }
 
-// The deadline only means what it says if the grace period is short. At the 30s
-// default, a 10s deadline kills the pod at 40s — because the container's process is
-// PID 1, which ignores SIGTERM unless it installs a handler, so the kubelet always
-// waits the full window before SIGKILL.
+// The deadline only means what it says if the grace period is short.
 func TestTerminationGracePeriodIsShort(t *testing.T) {
 	spec, _ := buildForTest(t)
 
@@ -78,8 +72,7 @@ func TestTerminationGracePeriodIsShort(t *testing.T) {
 	}
 }
 
-// The single most consequential setting: a mounted token would let the code being
-// sandboxed authenticate to the API server that is sandboxing it.
+// The single most consequential setting: a mounted token would let the code being sandboxed.
 func TestPodHasNoServiceAccountToken(t *testing.T) {
 	spec, _ := buildForTest(t)
 
@@ -131,8 +124,7 @@ func TestContainerIsLockedDown(t *testing.T) {
 	}
 }
 
-// The code arrives on a read-only mount; a writable one would let a submission rewrite
-// itself mid-run, and there would be no record of what actually executed.
+// The code arrives on a read-only mount.
 func TestCodeIsMountedReadOnly(t *testing.T) {
 	_, container := buildForTest(t)
 
@@ -153,8 +145,7 @@ func TestCodeIsMountedReadOnly(t *testing.T) {
 	}
 }
 
-// A read-only root filesystem breaks anything that writes, so /tmp is provided — but
-// bounded, or it becomes a way to fill the node's memory.
+// A read-only root filesystem breaks anything that writes, so /tmp is provided.
 func TestScratchSpaceIsBounded(t *testing.T) {
 	spec, _ := buildForTest(t)
 
@@ -173,8 +164,7 @@ func TestScratchSpaceIsBounded(t *testing.T) {
 	t.Error("no /tmp volume found, but the root filesystem is read-only")
 }
 
-// Kafka is at-least-once. A random name would let a redelivered record start a second
-// execution of the same submission.
+// Kafka is at-least-once.
 func TestJobNameIsDerivedFromSubmission(t *testing.T) {
 	sub := testSubmission()
 
@@ -200,8 +190,7 @@ func TestImageIsNotPulledFromRegistry(t *testing.T) {
 	}
 }
 
-// The namespace NetworkPolicy selects on this label; losing it silently removes the pod
-// from the policy's scope.
+// The namespace NetworkPolicy selects on this label.
 func TestPodCarriesTheExecutionLabel(t *testing.T) {
 	runtime, _ := RuntimeFor(event.LanguagePython)
 	job := BuildJob("codearena-exec", testSubmission(), runtime, DefaultLimits())

@@ -8,13 +8,7 @@ import { closeRedis, connectRedis, publishText } from '../src/realtime/redis.js'
 import { createGateway, type Gateway } from '../src/server.js';
 import { authed, nextEvent, registerUser, resetDb, type RegisteredUser } from './helpers.js';
 
-/**
- * Phase E relay.
- *
- * The orchestrator is not involved here — these tests publish the same Redis payloads it
- * publishes, and assert what reaches a browser. That keeps the relay's contract testable
- * without a Kubernetes cluster in the loop.
- */
+/** Phase E relay. */
 
 let gateway: Gateway;
 let port: number;
@@ -43,9 +37,7 @@ async function joinedSocket(token: string, room: string): Promise<ClientSocket> 
   return socket;
 }
 
-// Real UUIDs: the relay validates ids and drops anything malformed, so a placeholder
-// like 'sub-1' is silently discarded and every assertion below would fail for the wrong
-// reason.
+// Real UUIDs: the relay validates ids and drops anything malformed.
 const statusEvent = (status: string, exitCode: number | null = null) =>
   JSON.stringify({ type: 'status', submissionId: randomUUID(), sessionId, status, exitCode });
 
@@ -129,8 +121,7 @@ describe('execution event relay', () => {
     expect(forGuest.lines).toEqual(['shared']);
   });
 
-  // The assertion that matters most in this file: output from someone else's session
-  // is other people's code and other people's data.
+  // The assertion that matters most in this file: output from someone else's session is other.
   it('does not leak events to a socket in a different session', async () => {
     const insider = await joinedSocket(host.token, sessionId);
     const outsider = await joinedSocket(bystander.token, otherSessionId);
@@ -203,8 +194,7 @@ describe('execution event relay', () => {
     expect(messages).toBe(1);
   });
 
-  // Guards the duplicate-emit trap: `io.local` means this instance serves its own
-  // sockets exactly once, rather than re-broadcasting through the Redis adapter.
+  // Guards the duplicate-emit trap: `io.local` means this instance serves its own sockets exactly.
   it('delivers exactly one copy of each event', async () => {
     const socket = await joinedSocket(host.token, sessionId);
 

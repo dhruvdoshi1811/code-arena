@@ -1,14 +1,4 @@
-/**
- * Phase D proof.
- *
- * Runs real code inside real Kubernetes Jobs and reports what the platform did to it.
- * The headline case is the infinite loop: it must be killed at its deadline, exactly
- * once, while a normal submission running at the same moment completes untouched.
- *
- * Usage:  npm run dev                        (terminal 1)
- *         go run ./cmd/orchestrator          (terminal 2, from services/orchestrator)
- *         npm run proof:exec                 (terminal 3)
- */
+/** Phase D proof. */
 import { randomUUID } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
 import * as Y from 'yjs';
@@ -154,9 +144,7 @@ async function main(): Promise<void> {
     ),
   );
 
-  // The sandbox reports on itself. Asserting these from outside would only prove the
-  // Job spec was written correctly; running the checks inside the container proves the
-  // kubelet actually applied them.
+  // The sandbox reports on itself.
   console.log('\n  --- sandbox, as seen from inside the container ---');
   const introspect = await stage(
     'python',
@@ -217,8 +205,6 @@ async function main(): Promise<void> {
   results.push(report('concurrent neighbour', normalResult, 'COMPLETED'));
 
   // Budget: 10s deadline + 5s termination grace + scheduling and queue overhead.
-  // Deliberately tight — at the default 30s grace period this lands near 40s, and a
-  // loose ceiling here would have let that pass as "killed at the deadline".
   const KILL_BUDGET_MS = 28_000;
   const killedPromptly = loopResult.elapsedMs < KILL_BUDGET_MS;
   console.log(

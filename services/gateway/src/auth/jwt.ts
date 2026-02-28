@@ -3,7 +3,7 @@ import { config } from '../config.js';
 import { unauthorized } from '../errors.js';
 
 export interface TokenPayload {
-  /** User id. `sub` is the registered JWT claim for subject — no reason to invent one. */
+  /** User id. */
   sub: string;
   email: string;
 }
@@ -16,13 +16,7 @@ export function signAccessToken(user: { id: string; email: string }): string {
   });
 }
 
-/**
- * Verify and decode, or throw a 401.
- *
- * `algorithms` is pinned deliberately. Without it, jsonwebtoken will honour whatever
- * `alg` the token header claims, which is the classic algorithm-confusion foothold
- * (`alg: none`, or an RS256 public key replayed as an HS256 shared secret).
- */
+/** Verify and decode, or throw a 401. */
 export function verifyAccessToken(token: string): TokenPayload {
   let decoded: string | jwt.JwtPayload;
   try {

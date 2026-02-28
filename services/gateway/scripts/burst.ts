@@ -1,18 +1,4 @@
-/**
- * Phase C proof.
- *
- * Fires a burst of submissions at a live gateway while separately measuring whether the
- * gateway keeps answering unrelated requests, then reports how deep the queue got and
- * how fast the Go orchestrator drained it.
- *
- * The property being shown is that accepting a run costs bounded, constant work and
- * does not wait on anything downstream — run it once with the orchestrator stopped to
- * watch the backlog build, then start the orchestrator and watch it drain.
- *
- * Usage:  npm run dev                                  (terminal 1)
- *         go run ./cmd/orchestrator                    (terminal 2, optional)
- *         npm run proof:burst                          (terminal 3)
- */
+/** Phase C proof. */
 import { randomUUID } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
 import * as Y from 'yjs';

@@ -28,17 +28,14 @@ const (
 	runAsUID int64 = 65532
 )
 
-// RuntimeSpec is the per-language execution contract: which image runs a submission and
-// what the mounted file must be called for that image's entrypoint to find it.
+// RuntimeSpec maps a language to its execution image and entrypoint file.
 type RuntimeSpec struct {
 	Image    string
 	Filename string
 	Command  []string
 }
 
-// Runtimes maps a submission language to its execution image. Two languages on purpose
-// — the spec is explicit about not over-scoping this, and each one added is a new image
-// to build, load, scan, and push.
+// Runtimes maps a submission language to its execution image.
 var Runtimes = map[event.Language]RuntimeSpec{
 	event.LanguagePython: {
 		Image:    "codearena/exec-python:0.1.0",
@@ -57,13 +54,11 @@ type Limits struct {
 	CPU             string
 	Memory          string
 	DeadlineSeconds int64
-	// TTLSeconds lets Kubernetes reap the finished Job. Safe only because logs are
-	// followed live rather than read after the fact.
+	// TTLSeconds lets Kubernetes reap the finished Job.
 	TTLSeconds int32
 }
 
-// DefaultLimits are intentionally tight. Untrusted code has no legitimate reason to
-// need more, and every one of these is enforced by the kubelet rather than by us.
+// DefaultLimits are intentionally tight.
 func DefaultLimits() Limits {
 	return Limits{
 		CPU:             "500m",
@@ -74,16 +69,11 @@ func DefaultLimits() Limits {
 }
 
 // JobName is derived from the submission id, never random.
-//
-// Kafka delivers at least once. A redelivered record must not start a second execution,
-// and a deterministic name turns that into an AlreadyExists error from the API server —
-// the cheapest possible idempotency check, enforced by the thing that owns the objects.
 func JobName(submissionID string) string {
 	return "codearena-" + submissionID
 }
 
-// BuildConfigMap holds the submission's source. Mounted read-only; the code never
-// arrives via an env var or a shell argument, so there is nothing to escape.
+// BuildConfigMap holds the submission's source.
 func BuildConfigMap(namespace string, sub event.SubmissionEvent, runtime RuntimeSpec) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -99,12 +89,6 @@ func BuildConfigMap(namespace string, sub event.SubmissionEvent, runtime Runtime
 }
 
 // BuildJob assembles the sandbox.
-//
-// Everything restrictive here is enforced by Kubernetes, not by the orchestrator. That
-// distinction is the whole premise: an application that *asks* untrusted code to behave
-// has no boundary at all, whereas the kubelet will kill a container that exceeds its
-// memory limit and the Job controller will terminate one that outlives its deadline
-// whether or not this process is even running.
 func BuildJob(namespace string, sub event.SubmissionEvent, runtime RuntimeSpec, limits Limits) *batchv1.Job {
 	name := JobName(sub.SubmissionID)
 
@@ -120,12 +104,9 @@ func BuildJob(namespace string, sub event.SubmissionEvent, runtime RuntimeSpec, 
 			Labels:    labels,
 		},
 		Spec: batchv1.JobSpec{
-			// No retries. Without this the default is 6, so an infinite loop would be
-			// killed at its deadline and then handed six more deadlines to burn.
+			// No retries.
 			BackoffLimit: ptr.To[int32](0),
-			// The platform-enforced timeout. Note the consequence designed around
-			// elsewhere: when this fires the pod is deleted, so logs must already have
-			// been captured (see logs.go).
+			// The platform-enforced timeout.
 			ActiveDeadlineSeconds:   ptr.To(limits.DeadlineSeconds),
 			TTLSecondsAfterFinished: ptr.To(limits.TTLSeconds),
 			Completions:             ptr.To[int32](1),
@@ -134,24 +115,11 @@ func BuildJob(namespace string, sub event.SubmissionEvent, runtime RuntimeSpec, 
 				ObjectMeta: metav1.ObjectMeta{Labels: labels},
 				Spec: corev1.PodSpec{
 					RestartPolicy: corev1.RestartPolicyNever,
-					// Without this the default is 30 seconds, and "killed at a 10s
-					// deadline" silently becomes "killed at 40s".
-					//
-					// When the deadline fires the kubelet sends SIGTERM and waits out
-					// this grace period before SIGKILL. The container's process is PID
-					// 1, and PID 1 ignores any signal it has no explicit handler for —
-					// so an interpreter running a tight loop never dies on SIGTERM and
-					// always burns the full window. Untrusted code has not earned a
-					// graceful shutdown; five seconds is enough for a well-behaved
-					// program to flush and short enough that killed means killed.
+					// Without this the default is 30 seconds.
 					TerminationGracePeriodSeconds: ptr.To[int64](5),
-					// The single most important line in this file. Left at its default,
-					// the code being executed gets a ServiceAccount token mounted into
-					// its filesystem and can talk to the API server that is supposed to
-					// be sandboxing it.
+					// The single most important line in this file.
 					AutomountServiceAccountToken: ptr.To(false),
-					// Pod-level context; the container repeats what matters so neither
-					// alone is load-bearing.
+					// Pod-level context; the container repeats what matters so neither alone is load-bearing.
 					SecurityContext: &corev1.PodSecurityContext{
 						RunAsNonRoot:   ptr.To(true),
 						RunAsUser:      ptr.To(runAsUID),
@@ -164,8 +132,6 @@ func BuildJob(namespace string, sub event.SubmissionEvent, runtime RuntimeSpec, 
 						Image:   runtime.Image,
 						Command: runtime.Command,
 						// The images are built locally and side-loaded into the node.
-						// Always would send the kubelet to Docker Hub for a tag that
-						// does not exist there.
 						ImagePullPolicy: corev1.PullIfNotPresent,
 						Resources: corev1.ResourceRequirements{
 							Limits: corev1.ResourceList{
@@ -187,8 +153,7 @@ func BuildJob(namespace string, sub event.SubmissionEvent, runtime RuntimeSpec, 
 						},
 						VolumeMounts: []corev1.VolumeMount{
 							{Name: codeVolumeName, MountPath: workspaceMount, ReadOnly: true},
-							// The root filesystem is read-only, so anything that needs
-							// to write gets this bounded scratch space and nothing else.
+							// The root filesystem is read-only.
 							{Name: tmpVolumeName, MountPath: "/tmp"},
 						},
 					}},

@@ -11,11 +11,6 @@ import (
 )
 
 // NewClientset connects to the cluster, in-cluster first.
-//
-// The order matters for Phase F: deployed on EKS this process runs as a pod with a
-// ServiceAccount, and rest.InClusterConfig() picks that up with no configuration. The
-// kubeconfig fallback is the local development path against kind. One binary, both
-// environments, no build tags.
 func NewClientset(kubeconfigPath string) (*kubernetes.Clientset, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
@@ -34,8 +29,7 @@ func NewClientset(kubeconfigPath string) (*kubernetes.Clientset, error) {
 		}
 	}
 
-	// The orchestrator creates a Job per submission and watches them; the client-go
-	// defaults (5 QPS) would throttle a burst into a crawl.
+	// The orchestrator creates a Job per submission and watches them.
 	config.QPS = 50
 	config.Burst = 100
 

@@ -5,13 +5,7 @@ import type { SubmissionEvent } from '../src/domain.js';
 
 const { KafkaJS } = confluent;
 
-/**
- * Drain the submissions topic and return the events matching `wantedIds`.
- *
- * Reads from the beginning under a throwaway consumer group, then filters. The topic
- * accumulates across runs, so identifying this run's records by id is what keeps the
- * assertion meaningful — a count alone would pass on leftovers from a previous run.
- */
+/** Drain the submissions topic and return the events matching `wantedIds`. */
 export async function collectSubmissionEvents(
   wantedIds: Set<string>,
   timeoutMs = 30_000,
@@ -26,8 +20,7 @@ export async function collectSubmissionEvents(
 
   const consumer = kafka.consumer({
     kafkaJS: {
-      // A fresh group every call, so this never inherits committed offsets from a
-      // previous run and every record on the topic is visible.
+      // A fresh group every call.
       groupId: `test-collector-${randomUUID()}`,
       fromBeginning: true,
     },
@@ -64,7 +57,7 @@ export async function collectSubmissionEvents(
                 if (found.size === wantedIds.size) finish();
               }
             } catch {
-              // Not one of ours, or not JSON. Ignore.
+              // Not one of ours, or not JSON.
             }
           },
         })
@@ -93,8 +86,7 @@ export async function partitionCountForTopic(): Promise<number> {
   const admin = kafka.admin();
   await admin.connect();
   try {
-    // This client returns the topic list directly, unlike KafkaJS which wraps it in
-    // `{ topics: [...] }` — one of the places the compatibility layer is not identical.
+    // This client returns the topic list directly.
     const topics = await admin.fetchTopicMetadata({ topics: [config.kafkaSubmissionsTopic] });
     return topics[0]?.partitions.length ?? 0;
   } finally {

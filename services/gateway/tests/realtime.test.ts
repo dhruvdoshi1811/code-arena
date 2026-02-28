@@ -164,8 +164,7 @@ describe('yjs transport', () => {
     });
   });
 
-  // The two transports share one port; this is the proof that routing between them
-  // is decided explicitly rather than by a timing heuristic.
+  // The two transports share one port.
   it('rejects an unrecognised upgrade path with 404', async () => {
     await expect(connectYjs(`ws://localhost:${port}/definitely-not-a-transport`)).resolves.toMatchObject(
       { ok: false, status: 404 },

@@ -3,8 +3,7 @@ import { ZodError } from 'zod';
 import { AppError } from '../errors.js';
 import { config } from '../config.js';
 
-/** Every failure leaves the service in the same shape: `{ error: { code, message } }`.
- *  Clients branch on `code`; `message` is for humans. */
+/** Every failure leaves the service in the same shape: `{ error: { code, message } }`. */
 export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   if (err instanceof AppError) {
     res.status(err.status).json({ error: { code: err.code, message: err.message } });
@@ -19,7 +18,7 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     return;
   }
 
-  // Anything reaching here is a bug. Log it in full, tell the client nothing.
+  // Anything reaching here is a bug.
   if (!config.isTest) console.error('[http] unhandled error', err);
   res.status(500).json({ error: { code: 'INTERNAL', message: 'Internal server error' } });
 };

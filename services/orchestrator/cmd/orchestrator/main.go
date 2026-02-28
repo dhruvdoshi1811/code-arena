@@ -1,10 +1,4 @@
-// Command orchestrator consumes code submissions from Kafka and executes each one
-// inside an isolated, resource-limited Kubernetes Job.
-//
-// This service — not the Node gateway — owns both Kafka consumption and the cluster
-// interaction. client-go is the first-class, watch-aware Kubernetes client, and a
-// public-facing WebSocket server has no business holding credentials that can create
-// workloads in a cluster.
+// Command orchestrator consumes submissions from Kafka and runs each in a Kubernetes Job.
 package main
 
 import (
@@ -83,10 +77,7 @@ func main() {
 	}
 	defer c.Close()
 
-	// A bounded pool, not unbounded goroutines. Concurrency is required — "the infinite
-	// loop was killed without affecting other jobs" cannot be shown by a serial
-	// consumer — but unbounded concurrency would just move the resource exhaustion from
-	// the cluster into this process. The namespace ResourceQuota bounds the other side.
+	// A bounded pool, not unbounded goroutines.
 	slots := make(chan struct{}, cfg.MaxConcurrent)
 	var inFlight sync.WaitGroup
 

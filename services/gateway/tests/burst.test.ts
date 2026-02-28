@@ -17,25 +17,7 @@ import {
 } from './helpers.js';
 import { collectSubmissionEvents } from './kafkaHelpers.js';
 
-/**
- * The Phase C proof.
- *
- * The claim is narrower than "the gateway is fast under load", and worth stating
- * precisely because the measured numbers do not support the looser version.
- *
- * What the queue buys: accepting a submission costs one INSERT plus one produce —
- * bounded, constant work that does not depend on how long the code takes to run or on
- * whether anything is consuming at all. **No consumer runs during this test**, so the
- * topic simply accumulates, and the gateway neither slows down nor pushes back. That is
- * the decoupling. Without a queue, accepting a run would mean waiting on an executor
- * whose cost is unbounded and whose capacity is finite.
- *
- * What it does not buy: immunity from contention. Two hundred concurrent requests share
- * one event loop, so /healthz latency does rise while the burst is in flight (roughly
- * 4ms to 60ms p50 on this machine). The assertions below therefore check that the
- * gateway keeps serving throughout and that per-submission cost stays small — not that
- * latency is unchanged, which would be a claim the data contradicts.
- */
+/** The Phase C proof. */
 
 const BURST = 200;
 
@@ -129,18 +111,13 @@ describe('burst load', () => {
         `(${idle.length} idle / ${under.length} under-load samples)`,
     );
 
-    // Accepting a submission is bounded, constant work. If the gateway were waiting on
-    // anything downstream this would be orders of magnitude larger — and it holds with
-    // zero consumers attached, which is the whole point.
+    // Accepting a submission is bounded, constant work.
     expect(perSubmissionMs).toBeLessThan(50);
 
-    // The gateway kept answering unrelated requests *while* the burst was in flight;
-    // a blocked event loop would have produced no samples at all.
+    // The gateway kept answering unrelated requests *while* the burst was in flight.
     expect(under.length).toBeGreaterThan(2);
 
-    // An absolute ceiling, not a ratio against baseline. Latency does degrade under
-    // 200-way concurrency on a single event loop, and pretending otherwise would make
-    // this assertion decorative. What must not happen is unbounded queueing.
+    // An absolute ceiling, not a ratio against baseline.
     expect(underP95).toBeLessThan(1_000);
   }, 180_000);
 
@@ -148,8 +125,7 @@ describe('burst load', () => {
     const listed = await authed(gateway.app, host.token).get(
       `/api/sessions/${sessionId}/submissions`,
     );
-    // The listing endpoint caps at 20; the count check above already covers totality,
-    // so this asserts the queue delivered the ones we can name.
+    // The listing endpoint caps at 20.
     const ids = new Set<string>(
       (listed.body.submissions as { id: string }[]).map((submission) => submission.id),
     );
