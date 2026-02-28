@@ -18,7 +18,8 @@
     "proof": "dotenv -e .env -- tsx scripts/two-clients.ts",
     "proof:collab": "dotenv -e .env -- tsx scripts/concurrent-edit.ts",
     "proof:burst": "dotenv -e .env -- tsx scripts/burst.ts",
-    "proof:exec": "dotenv -e .env -- tsx scripts/execution-proof.ts"
+    "proof:exec": "dotenv -e .env -- tsx scripts/execution-proof.ts",
+    "proof:stream": "dotenv -e .env -- tsx scripts/streaming-proof.ts"
   },
   "dependencies": {
     "@confluentinc/kafka-javascript": "^1.10.0",
