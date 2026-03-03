@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: codearena-config
+  namespace: codearena
+data:
+  # In-cluster DNS, not localhost. Each is a Service name resolved by CoreDNS.
+  REDIS_URL: redis://redis:6379
+  KAFKA_BROKERS: redpanda:9092
+  KAFKA_SUBMISSIONS_TOPIC: code-submissions
+  KAFKA_CLIENT_ID: codearena-gateway
+  KAFKA_GROUP_ID: codearena-orchestrator
+  CORS_ORIGIN: http://localhost:8081
+  NODE_ENV: production
+  PORT: "4000"
+  LOG_LEVEL: info
+  EXECUTION_NAMESPACE: codearena-exec
+  EXECUTION_CPU: 500m
+  EXECUTION_MEMORY: 256Mi
+  EXECUTION_DEADLINE_SECONDS: "10"
+  EXECUTION_TTL_SECONDS: "300"
+  MAX_CONCURRENT_EXECUTIONS: "4"
+
+---
+# Demo credentials, checked in deliberately so the stack is reproducible from a clone.
+# On EKS these come from Secrets Manager or IRSA-backed external secrets — never from a
+# file in the repository.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: codearena-secrets
+  namespace: codearena
+type: Opaque
+stringData:
+  POSTGRES_USER: codearena
+  POSTGRES_PASSWORD: codearena
+  POSTGRES_DB: codearena
+  DATABASE_URL: postgres://codearena:codearena@postgres:5432/codearena
+  JWT_SECRET: local-cluster-demo-secret-not-for-real-use

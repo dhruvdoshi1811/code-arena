@@ -1,0 +1,8 @@
+# Application namespace. Untrusted code never runs here — that is codearena-exec, which
+# has its own quota, policies and restricted Pod Security Standard.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: codearena
+  labels:
+    app.kubernetes.io/part-of: codearena
