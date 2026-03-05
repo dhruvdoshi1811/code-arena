@@ -1,0 +1,98 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda
+  namespace: codearena
+spec:
+  selector:
+    app: redpanda
+  ports:
+    - name: kafka
+      port: 9092
+      targetPort: 9092
+    - name: admin
+      port: 9644
+      targetPort: 9644
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redpanda
+  namespace: codearena
+spec:
+  serviceName: redpanda
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redpanda
+  template:
+    metadata:
+      labels:
+        app: redpanda
+    spec:
+      containers:
+        - name: redpanda
+          image: docker.redpanda.com/redpandadata/redpanda:v25.2.5
+          args:
+            - redpanda
+            - start
+            - --smp=1
+            - --memory=1G
+            - --overprovisioned
+            - --node-id=0
+            - --check=false
+            # Advertises the Service DNS name. The compose setup advertised
+            # localhost:19092 for host clients; in-cluster every client resolves
+            # `redpanda`, so there is only one listener to care about.
+            - --kafka-addr=internal://0.0.0.0:9092
+            - --advertise-kafka-addr=internal://redpanda:9092
+            - --rpc-addr=0.0.0.0:33145
+            - --advertise-rpc-addr=redpanda:33145
+          ports:
+            - containerPort: 9092
+            - containerPort: 9644
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/redpanda/data
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "rpk cluster health | grep -q 'Healthy:.*true'"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 30
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1536Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi
+
+---
+# Creates the topic with a known partition count. Auto-creation would give it one
+# partition and silently serialise every session's submissions behind every other's.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: redpanda-init
+  namespace: codearena
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: rpk
+          image: docker.redpanda.com/redpandadata/redpanda:v25.2.5
+          command: ["/bin/sh", "-c"]
+          args:
+            - "rpk topic create code-submissions --partitions 3 --replicas 1 --brokers redpanda:9092 || true"
