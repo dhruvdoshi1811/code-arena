@@ -1,0 +1,34 @@
+# Schema migrations.
+#
+# A Job rather than an initContainer on the gateway Deployment: with two replicas, an
+# initContainer runs twice concurrently, and two node-pg-migrate processes racing through
+# the same migration table is a genuine way to corrupt a schema. A Job runs once.
+#
+# Re-runnable by design — applied migrations are recorded, so a redeploy is a no-op.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: codearena-migrate
+  namespace: codearena
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migrate
+          image: codearena/gateway:0.1.0
+          imagePullPolicy: IfNotPresent
+          command: ["npx", "node-pg-migrate", "-m", "migrations", "up"]
+          envFrom:
+            - configMapRef:
+                name: codearena-config
+            - secretRef:
+                name: codearena-secrets
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
