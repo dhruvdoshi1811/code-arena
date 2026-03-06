@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: codearena
+spec:
+  selector:
+    app: gateway
+  ports:
+    - port: 4000
+      targetPort: 4000
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: codearena
+spec:
+  # Two replicas on purpose. Everything Redis does in this system — presence via the
+  # Socket.io adapter, the CRDT document bridge, execution event fan-out — is only
+  # meaningful with more than one instance. One replica would make it decoration.
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      # The gateway is deliberately given no ServiceAccount token. It has no business
+      # talking to the Kubernetes API; only the orchestrator does.
+      automountServiceAccountToken: false
+      containers:
+        - name: gateway
+          image: codearena/gateway:0.1.0
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: codearena-config
+            - secretRef:
+                name: codearena-secrets
+          ports:
+            - containerPort: 4000
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 4000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 4000
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              cpu: "1"
+              memory: 768Mi
+          securityContext:
+            runAsNonRoot: true
+            # Stated numerically here as well as in the image: runAsNonRoot alone cannot
+            # be enforced against a named USER.
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
