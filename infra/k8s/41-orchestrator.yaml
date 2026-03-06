@@ -1,0 +1,96 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: codearena-orchestrator
+  namespace: codearena
+
+---
+# Least privilege, and the reason the Go service owns the cluster interaction rather than
+# the gateway. This Role lives in codearena-exec, not codearena: the orchestrator can
+# manage execution workloads and nothing else, in a namespace that holds nothing else.
+# It cannot touch its own Deployment, read the application Secret, or see any other
+# namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: codearena-executor
+  namespace: codearena-exec
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  # Reading pod logs is a separate subresource permission from reading pods.
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  # The submission's code is staged as a ConfigMap; deletion is handled by the Job's
+  # ownerReference, but create is ours.
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create", "get", "delete"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: codearena-executor
+  namespace: codearena-exec
+subjects:
+  - kind: ServiceAccount
+    name: codearena-orchestrator
+    namespace: codearena
+roleRef:
+  kind: Role
+  name: codearena-executor
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orchestrator
+  namespace: codearena
+spec:
+  # One replica. Scaling is horizontal via Kafka consumer-group partitions, and this
+  # topic has three — but a second replica here would also need the partition count
+  # raised to be useful, so it stays deliberate rather than incidental.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orchestrator
+  template:
+    metadata:
+      labels:
+        app: orchestrator
+    spec:
+      serviceAccountName: codearena-orchestrator
+      # Explicitly true: this is the one component that must reach the API server, and
+      # rest.InClusterConfig() in internal/k8s/client.go reads this token.
+      automountServiceAccountToken: true
+      containers:
+        - name: orchestrator
+          image: codearena/orchestrator:0.1.0
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: codearena-config
+            - secretRef:
+                name: codearena-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
