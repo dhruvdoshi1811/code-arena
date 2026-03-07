@@ -1,0 +1,70 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: codearena
+  namespace: codearena
+  annotations:
+    # Cookie affinity pins a browser to one gateway pod for the life of its session.
+    #
+    # This is not a performance tweak, it is a correctness requirement. A submission's
+    # code is read from the gateway's own in-memory Y.Doc, so POST /submissions must land
+    # on the same replica that holds the browser's document socket. Without affinity the
+    # request round-robins between two replicas and roughly half of all runs fail with
+    # 409 NO_DOCUMENT — intermittently, which is the worst way for it to fail.
+    #
+    # WebSockets would have required affinity regardless, so this costs nothing extra.
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/affinity-mode: "persistent"
+    nginx.ingress.kubernetes.io/session-cookie-name: "codearena-gateway"
+    nginx.ingress.kubernetes.io/session-cookie-max-age: "86400"
+    nginx.ingress.kubernetes.io/session-cookie-path: "/"
+
+    # A collaborative editing socket is idle whenever nobody is typing. The default 60s
+    # read timeout would disconnect both participants during any pause.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # Yjs updates are small; disabling request buffering keeps output streaming promptly
+    # rather than accumulating in nginx before reaching the browser.
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          # Order matters: the API and both WebSocket transports must be matched before
+          # the catch-all that serves the single-page app.
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  number: 4000
+          - path: /healthz
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  number: 4000
+          - path: /socket.io
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  number: 4000
+          - path: /yjs
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  number: 4000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 80
