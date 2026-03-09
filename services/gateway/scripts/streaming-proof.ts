@@ -4,6 +4,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import WebSocket from 'ws';
+import { StickyWebSocket, cookieHeader, establishAffinity, stickyFetch } from './lib/sticky.js';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 
 const BASE = process.env.GATEWAY_URL ?? `http://localhost:${process.env.PORT ?? 4000}`;
@@ -18,7 +19,7 @@ interface Arrival {
 
 async function api<T>(path: string, init: RequestInit & { token?: string } = {}): Promise<T> {
   const { token, ...rest } = init;
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await stickyFetch(`${BASE}${path}`, {
     ...rest,
     headers: {
       'content-type': 'application/json',
@@ -61,7 +62,7 @@ async function runScenario(
   const doc = new Y.Doc();
   const provider = new WebsocketProvider(`${BASE.replace(/^http/, 'ws')}/yjs`, session.id, doc, {
     params: { token: hostToken },
-    WebSocketPolyfill: WebSocket as unknown as typeof globalThis.WebSocket,
+    WebSocketPolyfill: StickyWebSocket,
     disableBc: true,
   });
   await new Promise<void>((resolve) =>
@@ -73,6 +74,7 @@ async function runScenario(
   // The guest connects and joins the room — a different person, a different socket.
   const guest: ClientSocket = ioClient(BASE, {
     transports: ['websocket'],
+    extraHeaders: { cookie: cookieHeader() },
     auth: { token: guestToken },
     reconnection: false,
   });
@@ -138,6 +140,9 @@ async function runScenario(
 }
 
 async function main(): Promise<void> {
+  // Pin this client to one gateway replica before any socket opens.
+  await establishAffinity(BASE);
+
   console.log(`\nCodeArena Phase E proof against ${BASE}`);
   console.log('the host runs the code; every line below is what the GUEST received\n');
 

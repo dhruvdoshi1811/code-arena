@@ -4,6 +4,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import WebSocket from 'ws';
+import { StickyWebSocket, establishAffinity, stickyFetch } from './lib/sticky.js';
 
 const BASE = process.env.GATEWAY_URL ?? `http://localhost:${process.env.PORT ?? 4000}`;
 const PASSWORD = 'correct-horse-battery-staple';
@@ -21,7 +22,7 @@ interface Submission {
 let token = '';
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await stickyFetch(`${BASE}${path}`, {
     ...init,
     headers: {
       'content-type': 'application/json',
@@ -44,7 +45,7 @@ async function stage(language: Language, code: string) {
   const doc = new Y.Doc();
   const provider = new WebsocketProvider(`${BASE.replace(/^http/, 'ws')}/yjs`, session.id, doc, {
     params: { token },
-    WebSocketPolyfill: WebSocket as unknown as typeof globalThis.WebSocket,
+    WebSocketPolyfill: StickyWebSocket,
     disableBc: true,
   });
   await new Promise<void>((resolve) =>
@@ -108,6 +109,9 @@ async function runCase(label: string, language: Language, code: string, expected
 }
 
 async function main(): Promise<void> {
+  // Pin this client to one gateway replica before any socket opens.
+  await establishAffinity(BASE);
+
   console.log(`\nCodeArena Phase D proof against ${BASE}\n`);
 
   const auth = await api<{ token: string }>('/api/auth/register', {

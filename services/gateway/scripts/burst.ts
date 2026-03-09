@@ -4,6 +4,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import WebSocket from 'ws';
+import { StickyWebSocket, establishAffinity, stickyFetch } from './lib/sticky.js';
 
 const BASE = process.env.GATEWAY_URL ?? `http://localhost:${process.env.PORT ?? 4000}`;
 const BURST = Number(process.env.BURST ?? 200);
@@ -15,7 +16,7 @@ const log = (step: string, detail: unknown = '') =>
 
 async function api<T>(path: string, init: RequestInit & { token?: string } = {}): Promise<T> {
   const { token, ...rest } = init;
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await stickyFetch(`${BASE}${path}`, {
     ...rest,
     headers: {
       'content-type': 'application/json',
@@ -32,6 +33,9 @@ const percentile = (sorted: number[], p: number) =>
   sorted.length === 0 ? 0 : sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))]!;
 
 async function main(): Promise<void> {
+  // Pin this client to one gateway replica before any socket opens.
+  await establishAffinity(BASE);
+
   console.log(`\nCodeArena Phase C proof against ${BASE}\n`);
 
   const host = await api<{ token: string; user: { id: string } }>('/api/auth/register', {
@@ -54,7 +58,7 @@ async function main(): Promise<void> {
   const doc = new Y.Doc();
   const provider = new WebsocketProvider(`${BASE.replace(/^http/, 'ws')}/yjs`, session.id, doc, {
     params: { token: host.token },
-    WebSocketPolyfill: WebSocket as unknown as typeof globalThis.WebSocket,
+    WebSocketPolyfill: StickyWebSocket,
     disableBc: true,
   });
   await new Promise<void>((resolve) =>
@@ -69,7 +73,7 @@ async function main(): Promise<void> {
     const samples: number[] = [];
     while (!stop.now) {
       const started = performance.now();
-      await fetch(`${BASE}/healthz`).catch(() => undefined);
+      await stickyFetch(`${BASE}/healthz`).catch(() => undefined);
       samples.push(performance.now() - started);
       await sleep(5);
     }
@@ -90,7 +94,7 @@ async function main(): Promise<void> {
 
   const results = await Promise.all(
     Array.from({ length: BURST }, () =>
-      fetch(`${BASE}/api/sessions/${session.id}/submissions`, {
+      stickyFetch(`${BASE}/api/sessions/${session.id}/submissions`, {
         method: 'POST',
         headers: { authorization: `Bearer ${host.token}` },
       }).then((res) => res.status),
